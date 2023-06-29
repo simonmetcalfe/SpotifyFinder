@@ -588,10 +588,69 @@
   }
 
   //-----------------------------------------------------------------------------------------------
+
+  //-----------------------------------------------------------------------------------------------
+  async function dupsTab_afRmTracksByPos100()
+  {
+    try
+    {
+      console.log('__SF__dupsTab_afRmTracksByPos100()');
+      vDupsTabLoading = true;
+
+      tabs_progBarStart('dupsTab_progBar', 'dupsTab_progStat1', 'Removing Tracks...', showStrImmed=true);
+
+      let rmTrackList = [];
+      let rowData;
+      $.each(vDupsTable.rows({order:'index', search:'applied'}).nodes(), function (i, item)
+      {
+        rowData = vDupsTable.row(this).data();
+        // ignore tracks with a track uri containing: 'spotify:local:'  we can not delete them since the track id is null
+        // example: user id: earono, plnm: Sing Songs, track: Stil with you Jungkook
+        // if (rowData[10].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[8]) )
+        if (rowData[8])  // add the track uri to the list if the track id is not null
+          rmTrackList.push({'Playlist Id': rowData[9], 'Track Uri': rowData[10], 'Track Position': parseInt(rowData[3])});
+      });
+
+      if (Object.keys(rmTrackList).length === 0)
+      {
+        alert('No tracks removed. Please select one or more tracks before pressing remove.')
+        return
+      }
+
+      // vDupsTable.clear();//.draw(); draw causes annoying flash
+      // console.log('__SF__dupsTab_afRmTracksByPosSeq() rmTrackList: rowData = \n' + JSON.stringify(rmTrackList, null, 4));
+      //await tabs_afRmTracksByPos(rmTrackList);
+      console.log(rmTrackList)
+      vDupsTable.clear();
+      await dupsTab_afFindDups();
+      await dupsTab_afLoadDupsTable();
+    }
+    catch(err)
+    {
+      // console.log('__SF__plTab_afActivate() caught error: ', err);
+      tabs_errHandler(err);
+    }
+    finally
+    {
+      // console.log('__SF__dupsTab_afRmTracksByPosSeq() finally.');
+      vDupsTabLoading = false;
+      tabs_progBarStop('dupsTab_progBar', 'dupsTab_progStat1', '');
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+
   function dupsTab_btnRmTracksByPos()
   {
     // console.log('__SF__dupsTab_btnRmTracksByPos()');
     dupsTab_afRmTracksByPosSeq();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  function dupsTab_btnRm100Tracks()
+  {
+    console.log('__SF__dupsTab_btnRm100Tracks()');
+    dupsTab_afRmTracksByPos100();
   }
 
   //-----------------------------------------------------------------------------------------------
