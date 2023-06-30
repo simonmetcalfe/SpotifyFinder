@@ -144,7 +144,7 @@
         cbDuration.append($('<option>', { value: '40', text : '40 secs' }));
         cbDuration.append($('<option>', { value: '50', text : '50 secs' }));
         cbDuration.append($('<option>', { value: '60', text : '60 secs' }));
-        cbDuration.val(10).change();
+        cbDuration.val(5).change();  //Changed default to 3 seconds 
 
         let cbRmPlId = $('#dupsTab_cbRmPlId');
         cbRmPlId.empty();
@@ -597,7 +597,7 @@
       console.log('__SF__dupsTab_afRmTracksByPos100()');
       vDupsTabLoading = true;
 
-      tabs_progBarStart('dupsTab_progBar', 'dupsTab_progStat1', 'Removing Tracks...', showStrImmed=true);
+      tabs_progBarStart('dupsTab_progBar', 'dupsTab_progStat1', 'Removing Visible Tracks...', showStrImmed=true);
 
       let rmTrackList = [];
       let rowData;
@@ -608,18 +608,18 @@
         // example: user id: earono, plnm: Sing Songs, track: Stil with you Jungkook
         // if (rowData[10].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[8]) )
         if (rowData[8])  // add the track uri to the list if the track id is not null
-          rmTrackList.push({'Playlist Id': rowData[9], 'Track Uri': rowData[10], 'Track Position': parseInt(rowData[3])});
+        rmTrackList.push({'Playlist Name': rowData[2],'Playlist Id': rowData[9], 'Track Uri': rowData[10], 'Track Position': parseInt(rowData[3]),'Track Name': rowData[1],'Artist Name': rowData[4],'Album Name': rowData[5]});
       });
 
       if (Object.keys(rmTrackList).length === 0)
       {
-        alert('No tracks removed. Please select one or more tracks before pressing remove.')
+        alert('No tracks removed. Please ensure 1 or more tracks are visible  before pressing remove.')
         return
       }
 
       // vDupsTable.clear();//.draw(); draw causes annoying flash
       // console.log('__SF__dupsTab_afRmTracksByPosSeq() rmTrackList: rowData = \n' + JSON.stringify(rmTrackList, null, 4));
-      //await tabs_afRmTracksByPos(rmTrackList);
+      await tabs_afRmTracksByPos(rmTrackList);
       console.log(rmTrackList)
       vDupsTable.clear();
       await dupsTab_afFindDups();
