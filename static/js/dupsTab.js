@@ -64,6 +64,7 @@
               vDupsTableLastSearchCol = this.name;
               that.search(this.value)
               that.draw();
+              dupsTab_updateSelectedCnt()
             }
           });
         });
@@ -536,7 +537,8 @@
   {
     //console.log('__SF__artistsTab_updateSelectedCnt()');
     let count = vDupsTable.rows({ selected: true }).count();
-    tabs_setLabel('dupsTab_info1', 'Selected Tracks: ' + count);
+    let countVisible = vDupsTable.rows({order:'index', search:'applied'}).count();
+    tabs_setLabel('dupsTab_info1', 'Selected Tracks: ' + count + '&nbsp &nbsp &nbsp &nbsp &nbsp' + 'Visible Tracks: ' + countVisible);
   }
 
   //-----------------------------------------------------------------------------------------------
