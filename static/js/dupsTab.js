@@ -603,14 +603,26 @@
 
       let rmTrackList = [];
       let rowData;
+      let countTracks = 0
       $.each(vDupsTable.rows({order:'index', search:'applied'}).nodes(), function (i, item)
       {
         rowData = vDupsTable.row(this).data();
         // ignore tracks with a track uri containing: 'spotify:local:'  we can not delete them since the track id is null
         // example: user id: earono, plnm: Sing Songs, track: Stil with you Jungkook
         // if (rowData[10].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[8]) )
-        if (rowData[8])  // add the track uri to the list if the track id is not null
+        
+        if (rowData[8]) { // add the track uri to the list if the track id is not null
         rmTrackList.push({'Playlist Name': rowData[2],'Playlist Id': rowData[9], 'Track Uri': rowData[10], 'Track Position': parseInt(rowData[3]),'Track Name': rowData[1],'Artist Name': rowData[4],'Album Name': rowData[5]});
+        console.log ('Adding for deletion track ' + rowData[1])
+        countTracks++
+        }
+        
+        // Allow deleted even when 100+ visible tracks, but only delete the first 100
+        if (countTracks > 99) {
+          console.log ('No more tracks now after ' + rowData[1])
+          alert('There are more than 100 visible tracks.  Only the first 100 have been deleted.')
+          return false;
+        }
       });
 
       if (Object.keys(rmTrackList).length === 0)
