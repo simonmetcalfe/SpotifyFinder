@@ -613,14 +613,13 @@
         
         if (rowData[8]) { // add the track uri to the list if the track id is not null
         rmTrackList.push({'Playlist Name': rowData[2],'Playlist Id': rowData[9], 'Track Uri': rowData[10], 'Track Position': parseInt(rowData[3]),'Track Name': rowData[1],'Artist Name': rowData[4],'Album Name': rowData[5]});
-        console.log ('Adding for deletion track ' + rowData[1])
+        console.log ('"Deleting","' + rowData[2] + '","' + rowData[9] + '","' + rowData[10] + '","' + parseInt(rowData[3]) + '"," ' + rowData[1] + '","' + rowData[4] + '","' + rowData[5] + '"')
         countTracks++
         }
         
         // Allow deleted even when 100+ visible tracks, but only delete the first 100
         if (countTracks > 99) {
-          console.log ('No more tracks now after ' + rowData[1])
-          alert('There are more than 100 visible tracks.  Only the first 100 have been deleted.')
+          alert('There are more than 100 visible tracks.  Only the first 100 have been deleted.  To delete more tracks, press the "Remove visible" button again.')
           return false;
         }
       });
