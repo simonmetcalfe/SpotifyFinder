@@ -109,6 +109,17 @@
     /*color: white;*/
   }
 
+  .navbarTabs button:hover {
+    background: #00fc89;
+    /*color: white;*/
+  }
+
+  .navbarTabs button {
+    background-color: #1db954;
+    cursor: pointer;
+    border: none;
+  }
+
   .tabsHatText {
     font-style: italic;
     font-size: 26px;
@@ -192,6 +203,7 @@
     background-color: #FFFFFF;
     border-radius: 8px;
     cursor: pointer;
+    margin-top: 6px;
   }
 
   .infoBtn:focus {
@@ -235,17 +247,6 @@
   th { font-size: 15px; }
 
   td { font-size: 14px; }
-
-  /* white background for selected item */
-  table.dataTable tbody tr.selected {
-      background-color: #FFFFFF !important;
-  }
-
-  /* thinner box around focus item */
-  table.dataTable tbody th.focus,
-  table.dataTable tbody td.focus {
-    box-shadow: inset 0px 0px 0px 1px green;
-  }
 
   /* dup table row color */
   .clrDup {

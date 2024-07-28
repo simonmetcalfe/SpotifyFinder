@@ -84,21 +84,14 @@
     {
       // console.log('__SF__searchTab_activate()');
       // console.log('__SF__searchTab_activate() - lastCnt = ' + vLastPlSelectionCntrSearchTab + ', curCnt = ' + curPlSelectionCntr);
-
-      // if you click "Playlists selected on this tab determines..." at the bottom of the plTab load times for each tab will be displayed (for dbg)
-      let t0;
-      if (vShowExeTm == 1)
-      {
-        $("#searchTab_ExeTm").text(0);
-        t0 = Date.now();
-      }
-
       if (vLastPlSelectionCntrSearchTab !== curPlSelectionCntr)
       {
         // console.log('__SF__searchTab_activate() - lastCnt = ' + vLastPlSelectionCntrSearchTab + ', curCnt = ' + curPlSelectionCntr);
         vLastPlSelectionCntrSearchTab = curPlSelectionCntr;
         vSearchTabLoading = true;
-        $('#artistTab_hint').hide();
+        $('#searchTab_hint').hide();
+        $("#searchTextInput").val('');
+        $("#searchTab_plNmTextInput").val('');
 
         // this works better if the clear tables are here instead of being inside async calls
         // we are reloading both tables so we empty them out
@@ -114,16 +107,10 @@
         await tracksTab_afLoadPlTracks();
 
         tabs_progBarStart('searchTab_progBar', 'searchTab_progStat1', 'Searching...', showStrImmed=true);
+        searchTab_setupPlaybackControls();
         await searchTab_afClearSearchTrackList();
         await searchTab_afRunSearch();
         await searchTab_afLoadSearchTable();
-
-        if (vShowExeTm == 1)
-        {
-          exeTm = Math.floor((Date.now() - t0) / 1000);
-          $("#searchTab_ExeTm").text(exeTm);
-        }
-        // console.log('__SF__searchTab_afActivate() - loading done - exit');
       }
     }
     catch(err)
@@ -137,7 +124,7 @@
       vSearchTabLoading = false;
       tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
       searchTab_SetSearchTextFocus();
-      $('#artistTab_hint').show();
+      $('#searchTab_hint').show();
     }
   }
 
@@ -170,9 +157,19 @@
   }
 
   //-----------------------------------------------------------------------------------------------
-  function searchTab_cbxEventSearch() { /* make function appear in pycharm structure list */  }
-  $('input[type=checkbox][name=cbxSearchFields]').change(function ()
+  function searchTab_cbxEventSearchChange() { /* make function appear in pycharm structure list */  }
+  $('input[type=checkbox][name=cbxSearchFields]').click(function ()
   {
+    if (vSearchTabLoading === true)
+    {
+      $("#searchTab_info3").text("Search Tab is loading. Please switch search fields when loading is complete.");
+      setTimeout(function ()
+      {
+        $("#searchTab_info3").text('');
+      }, 4500);
+      return false;
+    }
+
     // clicking on search field cbx will trigger a search
     var cbxFound = searchTab_LoadSearchFields();
     if (cbxFound === false)
@@ -197,6 +194,16 @@
     // if the search field is cleared by a backspace or delete clear the search results
     if ((event.keyCode === 8) || (event.keyCode === 46)) // backspace || delete
     {
+      if (vSearchTabLoading === true)
+      {
+        $("#searchTab_info3").text("Search Tab is loading. Please wait until loading is complete.");
+        setTimeout(function ()
+        {
+          $("#searchTab_info3").text('');
+        }, 4500);
+        return false;
+      }
+
       fieldVal = $(this).val();
       if ((vPrevSearchFieldVal != "") && (fieldVal == ""))
         searchTab_afLoadSearchTableSeq(true);
@@ -205,6 +212,15 @@
     // do a search when the user hits enter
     if (event.keyCode === 13) // return
     {
+      if (vSearchTabLoading === true)
+      {
+        $("#searchTab_info3").text("Search Tab is loading. Please wait until loading is complete.");
+        setTimeout(function ()
+        {
+          $("#searchTab_info3").text('');
+        }, 4500);
+        return false;
+      }
       vSearchText = $(this).val();
       if (vSearchText != "")
         searchTab_afRunSearchSeq();
@@ -220,7 +236,7 @@
     {
       // console.log('__SF__searchTab_afRunSearchSeq()');
       vSearchTabLoading = true;
-      $('#artistTab_hint').hide();
+      $('#searchTab_hint').hide();
       vSearchTable.clear().draw();
 
       var cbxFound = searchTab_LoadSearchFields();
@@ -260,7 +276,7 @@
       // console.log('__SF__searchTab_afRunSearchSeq() finally.');
       vSearchTabLoading = false;
       tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
-      $('#artistTab_hint').show();
+      $('#searchTab_hint').show();
     }
   }
 
@@ -304,7 +320,7 @@
     {
       // console.log("searchTab_afLoadSearchTableSeq()");
       vSearchTabLoading = true;
-      $('#artistTab_hint').hide();
+      $('#searchTab_hint').hide();
 
       tabs_set2Labels('searchTab_info1', 'Loading...', 'searchTab_info2', 'Loading...');
       tabs_progBarStart('searchTab_progBar', 'searchTab_progStat1', 'Searching...', showStrImmed=true);
@@ -326,7 +342,7 @@
       // console.log('__SF__searchTab_afLoadSearchTableSeq() finally.');
       vSearchTabLoading = false;
       tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
-      $('#artistTab_hint').show();
+      $('#searchTab_hint').show();
     }
   }
 
@@ -373,10 +389,10 @@
         $.each(plSelectedDict, function (key, item) {
           if (item['Playlist Owners Id'] === vUserId) {
             idNm = key + '::::' + item['Playlist Name'];
-            // console.log('__SF__tracksTab_afLoadPlNameTable() - userPl = \n' + key + ', ' + item['Playlist Name']);
+            // console.log('__SF__searchTab_afLoadPlNameTable() - userPl = \n' + key + ', ' + item['Playlist Name']);
             plNm = item['Playlist Name'];
-            if (plNm.length > 44)
-              plNm = plNm.slice(0, 44) + '...';
+            if (plNm.length > 84)
+              plNm = plNm.slice(0, 84) + '...';
             $('#searchTab_cbMvCpDest').append($('<option>', {value: idNm, text: plNm}));
           }
         });
@@ -510,7 +526,7 @@
     {
       // console.log('__SF__searchTab_afRmTracksByPosSeq()');
       vSearchTabLoading = true;
-      $('#artistTab_hint').hide();
+      $('#searchTab_hint').hide();
 
       tabs_progBarStart('searchTab_progBar', 'searchTab_progStat1', 'Removing Tracks...', showStrImmed=true);
 
@@ -548,7 +564,7 @@
       // console.log('__SF__searchTab_afRmTracksByPosSeq() finally.');
       vSearchTabLoading = false;
       tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
-      $('#artistTab_hint').show();
+      $('#searchTab_hint').show();
     }
   }
 
@@ -563,9 +579,14 @@
     // console.log('__SF__searchTab_cbMvCpDestOnChange() val = ' + idNm[1]);
 
     let count = vSearchTable.rows({ selected: true }).count();
-    if (count == '0')
+    if (count == 0)
     {
       alert('To move a track(s) you need to select a track(s).');
+      return;
+    }
+    if (count > 100)
+    {
+      alert('Spotify limits the number of tracks that can be moved at a time to 100. No tracks were moved.\n');
       return;
     }
 
@@ -582,7 +603,7 @@
     {
       // console.log('__SF__searchTab_afMvTracksSeq()');
       vSearchTabLoading = true;
-      $('#artistTab_hint').hide();
+      $('#searchTab_hint').hide();
 
       tabs_progBarStart('searchTab_progBar', 'searchTab_progStat1', 'Moving Tracks...', showStrImmed=true);
 
@@ -628,7 +649,7 @@
       // console.log('__SF__searchTab_afMvTracksSeq() finally.');
       tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
       vSearchTabLoading = false;
-      $('#artistTab_hint').show();
+      $('#searchTab_hint').show();
     }
   }
 
@@ -662,7 +683,7 @@
     {
       // console.log('__SF__searchTab_afCpTracksSeq()');
       vSearchTabLoading = true;
-      $('#artistTab_hint').hide();
+      $('#searchTab_hint').hide();
 
       tabs_progBarStart('searchTab_progBar', 'searchTab_progStat1', 'Coping Tracks...', showStrImmed=true);
 
@@ -697,12 +718,12 @@
       // console.log('__SF__searchTab_afCpTracksSeq() finally.');
       tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
       vSearchTabLoading = false;
-      $('#artistTab_hint').show();
+      $('#searchTab_hint').show();
     }
   }
 
   //-----------------------------------------------------------------------------------------------
-  function searchTab_btnClearColSearchFieldsOnClick()
+  function searchTab_btnClearColSearchFieldsOnClick(focusOnField=true)
   {
     //console.log('__SF__searchTab_btnClearColSearchFieldsOnClick()');
 
@@ -714,15 +735,27 @@
       $(this).keyup();
     });
 
-    // last element edited gets focus
-    let searchInputBox = $('input[name="'+vSearchTableLastSearchCol+'"]');
-    searchInputBox.focus();
+    if (focusOnField)
+    {
+      // last element edited gets focus
+      let searchInputBox = $('input[name="' + vSearchTableLastSearchCol + '"]');
+      searchInputBox.focus();
+    }
   }
 
   //-----------------------------------------------------------------------------------------------
   function searchTab_btnSearch()
   {
     // console.log('__SF__searchTab_btnSearch()');
+    if (vSearchTabLoading === true)
+    {
+      $("#searchTab_info3").text("Search Tab is loading. Please wait until loading is complete.");
+      setTimeout(function ()
+      {
+        $("#searchTab_info3").text('');
+      }, 4500);
+      return false;
+    }
     searchTab_afRunSearchSeq();
   }
 
@@ -730,7 +763,15 @@
   function searchTab_btnSearchClear()
   {
     // console.log('__SF__searchTab_btnSearchClear()');
-    vSearchTable.clear().draw();
+    if (vSearchTabLoading === true)
+    {
+      $("#searchTab_info3").text("Search Tab is loading. Please wait until loading is complete.");
+      setTimeout(function ()
+      {
+        $("#searchTab_info3").text('');
+      }, 4500);
+      return false;
+    }    vSearchTable.clear().draw();
   }
 
   //-----------------------------------------------------------------------------------------------
@@ -738,7 +779,7 @@
   {
     // console.log('__SF__searchTab_btnClear()');
     vSearchTable.order([]); // remove sorting
-    searchTab_btnClearColSearchFieldsOnClick();
+    searchTab_btnClearColSearchFieldsOnClick(false);
     searchTab_afLoadSearchTableSeq(false);
   }
 
@@ -778,7 +819,158 @@
     searchTab_updateSelectedCnt();
   }
 
-    //-----------------------------------------------------------------------------------------------
+  //-----------------------------------------------------------------------------------------------
+  function searchTab_setupPlaybackControls()
+  {
+    // enable/disable the playback btns
+    let btn = [$('#searchTab_PlayTracks'), $('#searchTab_PauseTrack'), $('#searchTab_NextTrack'), $('#searchTab_AddToQueue')];
+
+    btn.forEach((btn) =>
+    {
+      if (vUserProduct != 'premium')
+      {
+        btn.css('opacity', '0.2');
+        btn.prop("disabled", true);  // disabled on free accounts
+      }
+      else
+      {
+        btn.css('opacity', '1.0');
+        btn.prop("disabled", false); // enabled on premium accounts
+      }
+    });
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  function searchTab_btnAddToQueue()
+  {
+    // btn is disabled if account is not premium
+    searchTab_afAddToQueueSeq();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function searchTab_afAddToQueueSeq()
+  {
+    try
+    {
+      // console.log('__SF__searchTab_afAddToQueueSeq() - enter');
+      let count = vSearchTable.rows({ selected: true }).count();
+      if (count == 0)
+      {
+        alert('Select one or more tracks and then press add to queue.');
+        return;
+      }
+
+      vSearchTabLoading = true;
+      tabs_progBarStart('searchTab_progBar', 'searchTab_progStat1', 'Adding tracks to queue...', showStrImmed=true);
+
+      let trackUris = [];
+      let rowData;
+      let cntr = 0;
+      $.each(vSearchTable.rows('.selected').nodes(), function (i, item)
+      {
+        rowData = vSearchTable.row(this).data();
+        trackUris.push(rowData[10]); // track uri
+        // limited to 20 tracks because the spotify api only allows adding one track at a time to the queue
+        // if you call this api too fast it will miss tracks so the loader.addToQueue() has a delay between calls to spotify
+        cntr++;
+        if (cntr === 20)
+          return false;
+      });
+
+      // console.log('trackuris = ' + trackUris);
+      let retVal = await tabs_afAddToQueue(trackUris)
+      if (retVal == '')
+        return;
+      alert(retVal)
+    }
+    catch(err)
+    {
+      // console.log('__SF__searchTab_afAddToQueueSeq() caught error: ', err);
+      tabs_errHandler(err);
+    }
+    finally
+    {
+      // console.log('__SF__searchTab_afAddToQueueSeq() - finally');
+      tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
+      vSearchTabLoading = false;
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  function searchTab_btnPlayTracks()
+  {
+    // btn is disabled if account is not premium
+    searchTab_afPlayTracksSeq();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function searchTab_afPlayTracksSeq()
+  {
+    try
+    {
+      let contextUri = '';
+      let trackUris = [];
+      let retVal = await tabs_afPlayTracks(contextUri, trackUris) // pressing play on spotify
+      if (retVal == '')
+        return;
+      alert(retVal)
+    }
+    catch(err)
+    {
+      // console.log('__SF__searchTab_afPlayTracksSeq() caught error: ', err);
+      tabs_errHandler(err);
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  function searchTab_btnPauseTrack()
+  {
+    // btn is disabled if account is not premium
+    searchTab_afPauseTrackSeq();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function searchTab_afPauseTrackSeq()
+  {
+    try
+    {
+      let retVal = await tabs_afPauseTrack()
+      if (retVal == '')
+        return;
+      alert(retVal)
+    }
+    catch(err)
+    {
+      // console.log('__SF__searchTab_afPauseTrackSeq() caught error: ', err);
+      tabs_errHandler(err);
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  function searchTab_btnNextTrack()
+  {
+    // btn is disabled if account is not premium
+    searchTab_afNextTrackSeq();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function searchTab_afNextTrackSeq()
+  {
+    try
+    {
+      let retVal = await tabs_afNextTrack()
+      if (retVal == '')
+        return;
+      alert(retVal)
+    }
+    catch(err)
+    {
+      // console.log('__SF__searchTab_afNextTrackSeq() caught error: ', err);
+      tabs_errHandler(err);
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
   function searchTab_btnClearPlNmText()
   {
     // console.log('__SF__searchTab_btnClearPlNmText()');
@@ -798,9 +990,6 @@
     try
     {
       // console.log('__SF__searchTab_afCreatePlaylistSeq()');
-
-      done = false
-
       if ((vSearchTable.rows({ selected: true }).count() == 0))
       {
         alert('At least one track must be selected to create a new playlist.');
@@ -844,7 +1033,15 @@
       // console.log('searchTab_afCreatePlaylistSeq() createUriTrackList: rowData = \n' + JSON.stringify(createUriTrackList, null, 4));
 
       await tabs_afCreatePlaylist(vNewPlNm, createUriTrackList);
-      done = true
+      await new Promise(r => setTimeout(r, 3000));  // Spotify can be slow to update the list of playlists
+
+      // reload the plDict so the created pl is in the plDict without wiping the already loaded tracks
+      await plTab_afLoadPlDict(false);
+
+      // get the plTable to reload when the user goes back to the plTab
+      vCurTracksRmMvCpCntr = vCurTracksRmMvCpCntr + 1;
+
+      $("#searchTab_plNmTextInput").val('');
     }
     catch(err)
     {
@@ -856,8 +1053,6 @@
       // console.log('__SF__searchTab_afMvTracksSeq() finally.');
       tabs_progBarStop('searchTab_progBar', 'searchTab_progStat1', '');
       vSearchTabLoading = false;
-      if (done)
-        plTabs_btnReload()
     }
   }
 

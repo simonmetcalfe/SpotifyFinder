@@ -17,7 +17,7 @@
   {
     // console.log("dupsTab_initPlTab() - dupsTable ready()");
 
-    // after a refresh put the radio btns back into the initial state (needed for firefox)
+    // after a clear put the radio btns back into the initial state (needed for firefox)
     $(rPlModeAcross).prop('checked',true);
     $(rPlSearchId).prop('checked',true);
 
@@ -100,15 +100,6 @@
     {
       // console.log('__SF__dupsTab_activate()');
       // console.log('__SF__dupsTab_activate() - lastCnt = ' + vLastPlSelectionCntrDupsTab + ', curCnt = ' + curPlSelectionCntr);
-
-      // if you click "Playlists selected on this tab determines..." at the bottom of the plTab load times for each tab will be displayed (for dbg)
-      let t0;
-      if (vShowExeTm == 1)
-      {
-        $("#dupsTab_ExeTm").text(0);
-        t0 = Date.now();
-      }
-
       if (vLastPlSelectionCntrDupsTab !== curPlSelectionCntr)
       {
         vLastPlSelectionCntrDupsTab = curPlSelectionCntr;
@@ -156,13 +147,6 @@
         await tracksTab_afLoadPlTracks();
         await dupsTab_afFindDups();
         await dupsTab_afLoadDupsTable();
-
-        if (vShowExeTm == 1)
-        {
-          exeTm = Math.floor((Date.now() - t0) / 1000);
-          $("#dupsTab_ExeTm").text(exeTm);
-        }
-        // console.log('__SF__dupsTab_afActivate() - loading done - exit');
       }
     }
     catch(err)
@@ -210,15 +194,34 @@
 
   //-----------------------------------------------------------------------------------------------
   function dupsTab_radioBtnEventMode() { /* make function appear in pycharm structure list */ }
-  $('input[type=radio][name=rPlMode]').change(function()
+  $('input[type=radio][name=rPlMode]').click(function()
   {
+    if (vDupsTabLoading === true)
+    {
+      $("#dupsTab_info3").text("Duplicates Tab is loading. Please switch playlist mode when loading is complete.");
+      setTimeout(function ()
+      {
+        $("#dupsTab_info3").text('');
+      }, 4500);
+      return false;
+    }
+
     dupsTab_afFindDupsSeq();
   });
 
   //-----------------------------------------------------------------------------------------------
   function dupsTab_radioBtnEventSearch() { /* make function appear in pycharm structure list */ }
-  $('input[type=radio][name=rPlSearch]').change(function()
+  $('input[type=radio][name=rPlSearch]').click(function()
   {
+    if (vDupsTabLoading === true)
+    {
+      $("#dupsTab_info3").text("Duplicates Tab is loading. Please switch search mode when loading is complete.");
+      setTimeout(function ()
+      {
+        $("#dupsTab_info3").text('');
+      }, 4500);
+      return false;
+    }
     dupsTab_afFindDupsSeq()
   });
 
@@ -276,7 +279,7 @@
     else
     {
       let reply = await response.json();
-      // console.log('__SF__dupsTab_afLoadPlDict() reply = ', reply);
+      // console.log('__SF__dupsTab_afFindDups() reply = ', reply);
       if (reply['errRsp'][0] !== 1)
         tabs_throwSvrErr('dupsTab_afFindDups()', reply['errRsp'], 'dupsTab_errInfo')
     }
@@ -312,8 +315,8 @@
         {
           idNm = tvals['Playlist Id'] + '::::' + tvals['Playlist Name'];
           plNm = tvals['Playlist Name'];
-          if (plNm.length > 44)
-            plNm = plNm.slice(0, 44) + '...';
+          if (plNm.length > 84)
+            plNm = plNm.slice(0, 84) + '...';
           // console.log('dupsTab_setupRmPlId() - idNm = \n' + idNm + ',   plNm = ' + plNm);
           cbRmPlId.append($('<option>', {value: idNm, text: plNm}));
         }
@@ -516,7 +519,7 @@
   } );
 
   //-----------------------------------------------------------------------------------------------
-  function dupsTab_btnClearSearchPlOnClick()
+  function dupsTab_btnClearSearchPlOnClick(focusOnField = true)
   {
     //console.log('__SF__dupsTab_btnClearSearchPlOnClick()');
     // clear search boxes under pl table
@@ -527,9 +530,12 @@
       $(this).keyup();
     });
 
-    // last element edited gets focus
-    let searchInputBox = $('input[name="'+vDupsTableLastSearchCol+'"]');
-    searchInputBox.focus();
+    if (focusOnField)
+    {
+      // last element edited gets focus
+      let searchInputBox = $('input[name="' + vDupsTableLastSearchCol + '"]');
+      searchInputBox.focus();
+    }
   }
 
   //-----------------------------------------------------------------------------------------------
@@ -670,7 +676,7 @@
   function dupsTab_btnClear()
   {
     // console.log('__SF__dupsTab_btnClear()');
-    dupsTab_btnClearSearchPlOnClick();
+    dupsTab_btnClearSearchPlOnClick(false);
     dupsTab_afLoadDupsTableSeq();
   }
 
@@ -796,7 +802,7 @@
   //-----------------------------------------------------------------------------------------------
   function dupsTab_cbRmPlIdOnChange()
   {
-    console.log('__SF__dupsTab_cbRmPlIdOnChange() - enter')
+    // console.log('__SF__dupsTab_cbRmPlIdOnChange() - enter')
     let curSel = $('#dupsTab_cbRmPlId option:selected').text();
     if (curSel === cbRmTracksById)
       return;
@@ -808,13 +814,13 @@
     // });
     vDupsTable.rows().deselect();
 
-    console.log('__SF__dupsTab_cbRmPlIdOnChange() - exit')
+    // console.log('__SF__dupsTab_cbRmPlIdOnChange() - exit')
   }
 
   //-----------------------------------------------------------------------------------------------
   async function dupsTab_btnRmTracksByIdOnClick()
   {
-    console.log('__SF__dupsTab_btnRmTracksById()')
+    // console.log('__SF__dupsTab_btnRmTracksById()')
 
     let cbRmPlId = $('#dupsTab_cbRmPlId')
     let curSel = $('#dupsTab_cbRmPlId option:selected').text();
@@ -845,7 +851,7 @@
   {
     try
     {
-      console.log('__SF__dupsTab_afRmTracksByIdSeq()');
+      // console.log('__SF__dupsTab_afRmTracksByIdSeq()');
       vDupsTabLoading = true;
 
       tabs_progBarStart('dupsTab_progBar', 'dupsTab_progStat1', 'Removing Tracks...', showStrImmed = true);
@@ -937,13 +943,13 @@
     let response = await fetch(vUrl, { method: 'POST', headers: {'Content-Type': 'application/json',},
                                        body: JSON.stringify({ rmTracksById: 'removeTracks', plId: plId, rmTrackList: rmTrackList, reload: reload}), });
     if (!response.ok)
-      tabs_throwErrHttp('dupsTab_afRmTracksById()', response.status, 'tracksTab_errInfo');
+      tabs_throwErrHttp('dupsTab_afRmTracksById()', response.status, 'dupsTab_errInfo');
     else
     {
       let reply = await response.json();
       // console.log('__SF__dupsTab_afRmTracksById() reply = ', reply);
       if (reply['errRsp'][0] !== 1)
-        tabs_throwSvrErr('dupsTab_afRmTracksById()', reply['errRsp'], 'tracksTab_errInfo')
+        tabs_throwSvrErr('dupsTab_afRmTracksById()', reply['errRsp'], 'dupsTab_errInfo')
     }
   }
 

@@ -10,8 +10,9 @@
   var vLblId = null;
   var vSpotifyRmLimit = 100;
   var vSpotifyRmLimitMsg = "Spotify limit: max of 100 tracks per request.";
-  var vShowExeTm = 0;
   const cbMvDestDefault = '     Select A Destination Playlist     ';
+  var vRmByPosErrPlNm = 'not found (c)';
+  var vSessionRestartNeeded = false;  // after an err and the user went to a log or help page do a session reset on the next tab select
 
 
   //-----------------------------------------------------------------------------------------------
@@ -86,6 +87,30 @@
 
       if (tabName !== 'Info') // allow tab switch to info page on err even if loading is true
       {
+        // console.log('__SF__tabs_afSwitchTabs() - enter', evt, tabName);
+
+        // after an err and the user went to a log or help page do a session reset on the next tab select
+        if (vSessionRestartNeeded == true)
+        {
+          msg = 'Due to a previous error a session restart is needed.\n\n' +
+                'Press Ok and you will be redirected to the home page.\n';
+          alert(msg);
+
+          let urlSpotifyFinderStartPage = window.location.origin;
+          location.replace(urlSpotifyFinderStartPage); // goto home page
+          return;
+        }
+
+        if (vTotalTracksSelected > 25000)
+        {
+          // see plTabs_updateSelectedCntInfo()
+          msg = 'The maximum number of tracks that can be loaded is 25,000.\n' +
+                'With the currently selected playlists  ' + vTotalTracksSelected + '  tracks will need to be loaded.\n' +
+                'You must reduce the number of tracks to be loaded by selecting fewer playlists\n\n';
+          alert(msg);
+          return;
+        }
+
         if ((tabName !== 'PlayLists') && (vPlTabActivated === 0))
         {
           // let the initial load of the plTab complete before allowing a switch to another tab
@@ -166,7 +191,7 @@
       // console.log('__SF__tabs_afSwitchTabs() - switching tab to = ' + tabName);
       // var cookies = document.cookie; // only works if SESSION_COOKIE_HTTPONLY is false
       // console.log('__SF__cookies = ', cookies)
-      $('#artistTab_hint').hide();
+      $('#searchTab_hint').hide();
 
       if (vLastPlSelectionCntr !== vCurPlSelectionCntr)
       {
@@ -262,6 +287,7 @@
   //-----------------------------------------------------------------------------------------------
   async function tabs_afRmTracksByPos(rmTrackList)
   {
+    vRmByPosErrPlNm = 'unknown playlist name (c)';  // used in err dlg to tell user the plNm with the remove error
     vCurPlSelectionCntr = vCurPlSelectionCntr + 1;
     vCurTracksRmMvCpCntr = vCurTracksRmMvCpCntr + 1;
 
@@ -282,7 +308,11 @@
       let reply = await response.json();
       // console.log('__SF__tabs_afRmTracksByPos() reply = ', reply);
       if (reply['errRsp'][0] !== 1)
+      {
+        if ('plNm' in reply)
+           vRmByPosErrPlNm = reply['plNm']
         tabs_throwSvrErr('tabs_afRmTracksByPos()', reply['errRsp'], 'tabs_errInfo')
+      }
     }
   }
 
@@ -325,6 +355,171 @@
       // console.log('tabs_afCreatePlaylist() reply = ', reply);
       if (reply['errRsp'][0] !== 1)
         tabs_throwSvrErr('tabs_afCreatePlaylist()', reply['errRsp'], 'tabs_errInfo')
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function tabs_afDeletePlaylist(plNm, plId)
+  {
+    console.log('__SF__tabs_afDeletePlaylist() - vUrl - DeletePlaylist');
+    let response = await fetch(vUrl, { method: 'POST', headers: {'Content-Type': 'application/json',},
+                                       body: JSON.stringify({ deletePlaylist: 'deletePlaylist',
+                                                                    plNm: plNm,
+                                                                    plId: plId,
+                                                                  }), });
+    if (!response.ok)
+      tabs_throwErrHttp('tabs_afDeletePlaylist()', response.status, 'tabs_errInfo');
+    else
+    {
+      let reply = await response.json();
+      // console.log('__SF__tabs_afDeletePlaylist() reply = ', reply);
+      if (reply['errRsp'][0] !== 1)
+        tabs_throwSvrErr('tabs_afDeletePlaylist()', reply['errRsp'], 'tabs_errInfo')
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  function tabs_partialReloadVarReset()
+  {
+    // used by plTab: rename, delete, & refresh to reload the mPlDict to avoid wiping out mPlTracksDict and mPlSelectedDict
+    vCurPlSelectionCntr = vCurPlSelectionCntr + 1;
+    vCurTracksRmMvCpCntr = vCurTracksRmMvCpCntr + 1;
+    vPlNameTableLastSelectedRow = 0;
+    vArtistNameTableLastSelectedRow = 0;
+    vSearchText = '';
+    vPrevSearchFieldVal = '';
+    vArtistNameTableInitComplete = false;
+    vPlNamesTableInitComplete = false;
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function tabs_afAddToQueue(trackUris)
+  {
+    // see tabs_afPlayTracks() for notes on errors
+    // play/pause/next/add to queue all require spotify premium account...the ui btn should have been disabled...
+    if (vUserProduct != 'premium')
+      return;
+
+    let response = await fetch(vUrl, {
+                                method: 'POST', headers: {'Content-Type': 'application/json',},
+                                body: JSON.stringify({addToQueue: 'addToQueue',
+                                                           trackUris: trackUris})});
+    if (!response.ok)
+      tabs_throwErrHttp('tabs_afAddToQueue()', response.status, 'tabs_errInfo');
+    else
+    {
+      let reply = await response.json();
+      if (reply['errRsp'][0] !== 1)
+      {
+        // we do not throw because an error here does affect anything else
+        // console.log('tabs_afAddToQueue - error reply = ', reply['errRsp']);
+        if (reply['errRsp'][8].includes('NO_ACTIVE_DEVICE'))
+          return 'Add to Queue request failed because there is no active Spotify device.  \nYou must have a Spotify App open and playing for this to work.'
+        return 'Spotify denied the Add to Queue request. '
+      }
+      return '';
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function tabs_afPlayTracks(contextUri='', trackUris = [])
+  {
+    // possible errors
+    // - not a premium user error
+    //   http status: 403, code:-1 - https://api.spotify.com/v1/me/player/play:
+    //     Player command failed: Premium required, reason: PREMIUM_REQUIRED
+
+    // - not active spotify device
+    //   http status: 404, code:-1 - https://api.spotify.com/v1/me/player/play:
+    //    Player command failed: No active device found, reason: NO_ACTIVE_DEVICE
+
+    // how to force a NO_ACTIVE_DEVICE error
+    // - open the spotify app on your phone
+    // - select the phone as the active playback device
+    // - hit play in the spotify app on your phone
+    // - close the spotify app on your phone
+    // - hit play in the spotifyFinder app
+    // - you will see a Play request failed err msg
+
+    // play/pause/next/add to queue all require spotify premium account...the ui btn should have been disabled...
+    if (vUserProduct != 'premium')
+      return;
+
+    let response = await fetch(vUrl, {
+                                method: 'POST', headers: {'Content-Type': 'application/json',},
+                                body: JSON.stringify({playTracks: 'playTracks',
+                                                           contextUri: contextUri,
+                                                           trackUris: trackUris})});
+    if (!response.ok)
+      tabs_throwErrHttp('tabs_afPlayTracks()', response.status, 'tabs_errInfo');
+    else
+    {
+      let reply = await response.json();
+      if (reply['errRsp'][0] !== 1)
+      {
+        // we do not throw because an error here does affect anything else
+        // console.log('tabs_afPlayTracks - error reply  = ', reply['errRsp']);
+        if (reply['errRsp'][8].includes('NO_ACTIVE_DEVICE'))
+          return 'Play request failed because there is no active Spotify device.  \nYou must have a Spotify App open and playing for this to work.'
+        return 'Spotify denied the Play request. '
+      }
+      return '';
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function tabs_afNextTrack()
+  {
+    // see tabs_afPlayTracks() for notes on errors
+    // play/pause/next/add to queue all require spotify premium account...the ui btn should have been disabled...
+    if (vUserProduct != 'premium')
+      return;
+
+    let response = await fetch(vUrl, {
+                                method: 'POST', headers: {'Content-Type': 'application/json',},
+                                body: JSON.stringify({nextTrack: 'nextTrack'})});
+    if (!response.ok)
+      tabs_throwErrHttp('tabs_afNextTrack()', response.status, 'tabs_errInfo');
+    else
+    {
+      let reply = await response.json();
+      if (reply['errRsp'][0] !== 1)
+      {
+        // we do not throw because an error here does affect anything else
+        // console.log('tabs_afNextTrack - error reply = ', reply['errRsp']);
+        if (reply['errRsp'][8].includes('NO_ACTIVE_DEVICE'))
+          return 'Next track request failed because there is no active Spotify device.  \nYou must have a Spotify App open and playing for this to work.'
+        return 'Spotify denied the Next Track request. '
+      }
+      return '';
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function tabs_afPauseTrack()
+  {
+    // see tabs_afPlayTracks() for notes on errors
+    // play/pause/next/add to queue all require spotify premium account...the ui btn should have been disabled...
+    if (vUserProduct != 'premium')
+      return;
+
+    let response = await fetch(vUrl, {
+                                method: 'POST', headers: {'Content-Type': 'application/json',},
+                                body: JSON.stringify({pauseTrack: 'pauseTrack'})});
+    if (!response.ok)
+      tabs_throwErrHttp('tabs_afPauseTrack()', response.status, 'tabs_errInfo');
+    else
+    {
+      let reply = await response.json();
+      if (reply['errRsp'][0] !== 1)
+      {
+        // we do not throw because an error here does affect anything else
+        // console.log('tabs_afPauseTrack - error reply = ', reply['errRsp']);
+        if (reply['errRsp'][8].includes('NO_ACTIVE_DEVICE'))
+          return 'Next track request failed because there is no active Spotify device.  \nYou must have a Spotify App open and playing for this to work.'
+        return 'Spotify denied the Pause request. '
+      }
+      return '';
     }
   }
 
@@ -402,7 +597,7 @@
                  ', clientMethod:  '     + methodName +
                  ', errCode: '           + statusCode.toString() +
                  ', dateTime: '          + (new Date().toLocaleString()).replace(',',' ');
-    throw new Error(errMsg);
+    throw new Error(errMsg); // caught in a try/catch and tabs_errHandler() is called
   }
 
   //-----------------------------------------------------------------------------------------------
@@ -420,13 +615,16 @@
                   ', svrSysStr1: '        + errArr[7] +
                   ', svrSysStr2: '        + errArr[8];
 
-    throw new Error(errMsg);
+    throw new Error(errMsg); // caught in a try/catch and tabs_errHandler() is called
   }
 
   //-----------------------------------------------------------------------------------------------
   function tabs_errHandler(err)
   {
-    console.log('__SF__tabs_errHandler() err = ', err);
+    // console.log('__SF__tabs_errHandler() err = ', err.message);
+
+    // we set vHtmlInfoFn goto clientlog or remove errors help page if user hits cancel
+    vHtmlInfoFn = 'clientLog';
 
     // console.log('__SF__tabs_errHandler() stackTrace = ', stacktrace());
     // st = printStackTrace();
@@ -445,7 +643,7 @@
       vAborting = 1;
       alert(msg);
       let urlSpotifyFinderStartPage = window.location.origin;
-      location.replace(urlSpotifyFinderStartPage);
+      location.replace(urlSpotifyFinderStartPage);  // goto home page
       return;
     }
 
@@ -454,11 +652,13 @@
 
     vAborting = 1;
 
+    // after an err and the user went to a log or help page do a session reset on the next tab select
+    vSessionRestartNeeded = true;
+
     msg = 'An error has occured.\n' +
       'A session restart is needed.\n\n' +
       'Press Ok and you will be redirected to the home page.\n' +
-      'Press Cancel and you will be redirected to the log viewer.\n\n\n\n' +
-      'Support:\n' +
+      'Press Cancel and you will be redirected to the log viewer.\n\n' +
       'If you send instructions on how to reproduce the error we will have a look.   Email: spotifyfinderapp@gmail.com\n';
 
 
@@ -466,41 +666,15 @@
     console.log('splits = ', errMsgSplit);
     if (errMsgSplit[2] === "errCode: -5") // errRmTracksByPosFromSpotPlaylist = -5
     {
-      msg = 'One or more of the tracks you selected were not removed.\n\n' +
-        'I need a few users to help me sort out why this error occurs.\n' +
-        'I have not been able to reproduce this error using my Spotify playlists.\n' +
-        'If you are willing to assist with fixing this error send me an email.\n' +
-        '             spotifyfinderapp@gmail.com\n\n' +
-        'A session restart is needed.\n' +
-        'Press Ok and you will be redirected to the home page.\n' +
-        'Press Cancel and you will be redirected to the log viewer.\n\n\n' +
-        'The Primary reason for tracks not being removed:\n' +
-        '- The Spotify database entries for your playlist need to be refreshed.\n' +
-        '- The easiest way to refresh the Spotify database is to:\n' +
-        '  - Recreate the playlist using the SpotifyFinder Tracks tab: \n' +
-        '    1) Go to the Tracks tab and create a new playlist from the existing playlist: (select playlist, select all, enter a playlist name, press create playlist)\n' +
-        '    2) Use the new playlist and the remove will work ok.\n\n\n' +
-        'The Secondary reason why this error occurs:\n' +
-        '- This error will occur when you have SpotifyFinder opened in your browser and you change the playlist in the Spotify App.\n' +
-        '- If you change a playlist outside of SpotifyFinder, while SpotifyFinder is opened in your browser, you must press \'Reload from Spotify\' to update SpotifyFinder with the current track positons. \n\n\n';
+      vHtmlInfoFn = 'helpTextRemoveErrors.html';
+      msg = 'One or more of the tracks you selected were not removed from this\n' +
+            'Playlist:  ' + vRmByPosErrPlNm + '.\n\n' +
+            'There are 2 ways to fix Remove Errors.\n' +
+            'Press Ok to see how to fix Remove Errors .\n';
+      alert(msg);
+      $("#btnInfoTab")[0].click();
+      return;
     }
-    // {
-    //   msg = 'One or more of the tracks you selected were not removed.\n\n' +
-    //     'A session restart is needed.\n\n' +
-    //     'Press Ok and you will be redirected to the home page.\n' +
-    //     'Press Cancel and you will be redirected to the log viewer.\n\n\n' +
-    //     'The Primary reason for tracks not being removed:\n' +
-    //     '- The Spotify database entries for your playlist need to be refreshed.\n' +
-    //     '- The easiest way to refresh the Spotify database is to:\n' +
-    //     '  - Recreate the playlist using the SpotifyFinder Tracks tab: \n' +
-    //     '    1) Go to the Tracks tab and create a new playlist from the existing playlist: (select playlist, select all, enter a playlist name, press create playlist)\n' +
-    //     '    2) Use the new playlist and the remove will work ok.\n\n\n' +
-    //     'The Secondary reason why this error occurs:\n' +
-    //     '- This error will occur when you have SpotifyFinder opened in your browser and you change the playlist in the Spotify App.\n' +
-    //     '- If you change a playlist outside of SpotifyFinder, while SpotifyFinder is opened in your browser, you must press \'Reload from Spotify\' to update SpotifyFinder with the current track positons. \n\n\n' +
-    //     'I need your assistance reproducing this issue so I understand why this error is occurring and then fix it.\n' +
-    //     '- if you are interested helping sort this out you can email me at:  spotifyfinderapp@gmail.com\n';
-    // }
 
     if (errMsgSplit[2] === "errCode: -26")
     {
@@ -508,7 +682,7 @@
             'Wait 30 seconds and try again.\n' +
             'A session restart is needed.\n' +
             'Press Ok and you will be redirected to the home page.\n' +
-            'Press Cancel and you will be redirected to the log viewer.\n\n\n';
+            'Press Cancel and you will be redirected to the log viewer.\n\n';
     }
 
     if (errStr.search('-420') != -1)
@@ -516,23 +690,21 @@
       msg = 'Your browsers cache has an old javascript file.\n' +
             'Your browsers cache needs to be cleared.\n' +
             'Just clear the cache and nothing else.\n' +
-            'Go into the browsers settings and clear the cache.\n' +
-            'Or use windows keyboard shortcut: Control-Shift-Delete.\n' +
             'After clearing the browsers cache restart the browser.\n\n' +
             'Press Ok and you will be redirected to the home page.\n' +
-            'Press Cancel and you will be redirected to the error log viewer.\n\n' +
-            'For support: email error log text to: spotifyfinderapp@gmail.com\n';
+            'Press Cancel and you will be redirected to the error log viewer.\n\n';
     }
 
     if (confirm(msg) == true)
     {
       let urlSpotifyFinderStartPage = window.location.origin;
-      location.replace(urlSpotifyFinderStartPage);
+      location.replace(urlSpotifyFinderStartPage); // goto home page
+      return;
     }
     else
     {
       // console.log('__SF__tabs_errHandler() cancel - goto info tab ');
-      vHtmlInfoFn = 'clientLog';
+      // we set vHtmlInfoFn goto clientlog or remove errors help page if user hits cancel
       $("#btnInfoTab")[0].click();
     }
   }

@@ -4,15 +4,15 @@
   var vPlTabActivated = 0;
   var vPlTabLoading = false;
   var vPlTableLastSearchCol = '';
-  var vPlTmExe = 0;
-  var vTrackLoadingWarning = false;
+  var vTotalTracksSelected = 0;
 
   var vUserId = '';
   var vUserName = '';
+  var vUserProduct = '';
   var vCookie = '';
   var vSid = '';
 
-  const cbOwnerDefault = 'Select By Owner\'s Name';
+  const cbOwnerDefault = 'Show By Owner\'s Name';
 
   //-----------------------------------------------------------------------------------------------
   function plTab_init(tableHeight=300)
@@ -70,7 +70,8 @@
       "orderClasses":    false, // background color of sorted column does not change
       "order":           [],
       columnDefs: [ { targets: 0, className: 'select-checkbox', orderable: false },
-                    { targets: 6, visible: false, searchable: false } ],
+                    { targets: 6, visible: false, searchable: false },
+                    { targets: 7, visible: false, searchable: false } ],
       select: { style: 'multi' }
     });
   }
@@ -87,9 +88,6 @@
   {
     try
     {
-       // if you click "Playlists selected on this tab determines..." at the bottom of the plTab load times for each tab will be displayed (for dbg)
-      let t0 = Date.now(); // on this tab we always collect ExeTm because vShowExeTm is always 0 on the initial load of the playlists
-
       // console.log("plTab_afActivate() vPlTabActivated = " + vPlTabActivated);
       if (vPlTabActivated === 0)
       {
@@ -112,20 +110,20 @@
         // console.log("plTab_afActivate() - last and cur removed cntrs are different");
 
         vLastTracksRmMvCpCntr = curTracksRmMvCpCntr;
+        $("#plTab_plNmTextInput").val('');
 
         tabs_set2Labels('plTab_info1', 'Loading...', 'plTab_info2', 'Loading...');
         tabs_progBarStart('plTab_progBar', 'plTab_progStat1', 'Loading Playlists...', showStrImmed=true);
 
-        // note loadPlDict() is called by oLoader:rmTracksFromSpotPlaylist() when removing tracks
-        // so we only have to reload the PlTable with the updated number of tracks
+        // note above removing tracks:
+        //  - loadPlTracks1x(plId) is called by oLoader:rmTracksByPosFromSpotPlaylist() when removing tracks
+        //    loadPlTracks1x(plId) updates the plDict[plId] with the new track cnt  so we only have to reload the
+        //    PlTable with the updated plDict
         vPlTable.clear().draw();
         await plTab_afLoadPlTable();
         await plTab_afRestorePlTableCkboxes();
         plTabs_updateSelectedCntInfo();
       }
-
-      // console.log('__SF__plTab_afActivate() - exit');
-      vPlTmExe = Math.floor((Date.now() - t0) / 1000);
     }
     catch(err)
     {
@@ -140,8 +138,23 @@
     }
   }
 
+
   //-----------------------------------------------------------------------------------------------
-  async function plTab_afRefresh()
+  function plTabs_btnRestore()
+  {
+    plTab_afRestoreSeq();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function plTab_afRestoreSeq()
+  {
+    // console.log('plTab_afRestoreSeq()');
+    plTabs_btnClearSearchPlOnClick(false);
+    await plTab_afRestore();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function plTab_afRestore()
   {
     try
     {
@@ -170,6 +183,50 @@
     }
   }
 
+    //-----------------------------------------------------------------------------------------------
+  async function plTab_afPartialReloadSeq(saveSelectedDict = false)
+  {
+    try
+    {
+      // used by plTab: rename, delete, & refresh to reload the mPlDict to avoid wiping out mPlTracksDict and mPlSelectedDict
+
+      console.log("__SF__plTab_afPartialReload()");
+      vPlTabLoading = true;
+      tabs_progBarStart('plTab_progBar', 'plTab_progStat1', 'Loading...', showStrImmed=true);
+
+      // delete and rename:
+      //  - in the loader the associated delete or rename plId is removed from the mPlDict, mPlTracksDict, mPlSelectedDict
+
+      tabs_partialReloadVarReset();
+      if (saveSelectedDict === true)
+      {
+        // refresh:
+        //  - the only playlist selected is the one being refresh...make sure is it in the plSelectedDict
+        //    so it is selected on reload if the user never left the plTab when refreshing it
+        await plTab_afUpdatePlSelectedDict();
+      }
+
+      // with clearTracksDict = false the mPlTracksDict and mPlSelectedDict is not cleared when reloading the mPlDict
+      // this way already loaded tracks are not wiped out after a refresh, rename, delete
+      await plTab_afLoadPlDict(false);
+      vPlTable.clear().draw();
+      await plTab_afLoadPlTable();
+      await plTab_afRestorePlTableCkboxes();
+      plTabs_updateSelectedCntInfo();
+    }
+    catch(err)
+    {
+      // console.log('__SF__plTab_afPartialReload() caught error: ', err);
+      tabs_errHandler(err);
+    }
+    finally
+    {
+      // console.log('__SF__plTab_afPartialReload() finally.');
+      tabs_progBarStop('plTab_progBar', 'plTab_progStat1', '');
+      vPlTabLoading = false;
+    }
+  }
+
   //-----------------------------------------------------------------------------------------------
   async function plTab_afloadSpotifyInfo()
   {
@@ -193,6 +250,7 @@
 
       vUserId = reply['userId'];
       vUserName = reply['userName']
+      vUserProduct = reply['userProduct']
       vCookie = reply['cookie']
       vSid = reply['sid']
       // console.log('__SF__plTabs_loadSpotifyInfo() - \n   userId = ' + vUserId + ',\n   userName = ' + vUserName + ',\n   cookie = ' + vCookie + ',\n   sid = ' + vSid);
@@ -200,53 +258,39 @@
     }
   }
 
-  // //-----------------------------------------------------------------------------------------------
-  // async function plTab_afLoadPlDict()
-  // {
-  //   // console.log('__SF__plTab_afLoadPlDict()');
-  //   console.log('__SF__plTab_afLoadPlDict() - vUrl - loadPlDict');
-  //   let response = await fetch(vUrl, { method: 'POST', headers: {'Content-Type': 'application/json',},
-  //                                      body: JSON.stringify({ loadPlDict: 'loadPlDict' }), });
-  //   if (!response.ok)
-  //     tabs_throwErrHttp('plTab_afLoadPlDict()', response.status, 'plTab_errInfo');
-  //   else
-  //   {
-  //     let reply = await response.json();
-  //     // console.log('__SF__plTab_afLoadPlDict() reply = ', reply);
-  //     if (reply['errRsp'][0] !== 1)
-  //       tabs_throwSvrErr('plTab_afLoadPlDict()', reply['errRsp'], 'plTab_errInfo')
-  //   }
-  // }
-
   //-----------------------------------------------------------------------------------------------
-  async function plTab_afLoadPlDict()
+  async function plTab_afLoadPlDict(clearTracksDict=true)
   {
-    console.log('__SF__plTab_afLoadPlDict()');
+    // clearTrackDict set to false:
+    //  - by plTab rename, delete, refresh
+    //  - by search tab, artist tab, tracks tab when doing a create
+    //  - by tracks tab when doing a sort
+    //  to avoid wiping the previously loaded tracks    
+    // console.log('__SF__plTab_afLoadPlDict()');
     let idx = 0;
     let done = false;
     let nPlRxd = 0;
     while (done === false)
     {
       sIdx = idx;
-      nPlRxd = await plTab_afLoadPlDictBatch(idx);
+      nPlRxd = await plTab_afLoadPlDictBatch(idx,clearTracksDict);
       idx += nPlRxd;
       if (nPlRxd < 50) // when fetch less then the batchSize we are done
-      {
         done = true;
-      }
-      // console.log('__SF__plTab_afLoadPlDict() idx =' + sIdx + ', nPlRxd = ' + nPlRxd + ', nTotal = ' + idx + ', done = ' + done);
-      // if (idx >= 700)
-      //   done = true
+      // done = true;  // stop after the first load...for testing...
     }
   }
 
   //-----------------------------------------------------------------------------------------------
-  async function plTab_afLoadPlDictBatch(idx)
+  async function plTab_afLoadPlDictBatch(idx, clearTracksDict)
   {
     // console.log('__SF__plTab_afLoadPlDictBatch()');
     // console.log('__SF__plTab_afLoadPlDictBatch() - vUrl - loadPlDictBatch');
     let response = await fetch(vUrl, { method: 'POST', headers: {'Content-Type': 'application/json',},
-                                       body: JSON.stringify({ loadPlDictBatch: 'loadPlDictBatch', idx: idx }), });
+                                       body: JSON.stringify({ loadPlDictBatch: 'loadPlDictBatch',
+                                                                    idx: idx,
+                                                                    clearTracksDict: clearTracksDict
+                                                                  }), });
     if (!response.ok)
       tabs_throwErrHttp('plTab_afLoadPlDictBatch()', response.status, 'plTab_errInfo');
     else
@@ -281,13 +325,15 @@
       {
         // if (val['Playlist Owners Id'] === 'd821vfpc7iz90kbxig72n533l')
         if (val['Playlist Owners Id'] === vUserId)
-          vPlTable.row.add(['', val['Playlist Name'], val['Tracks'], val['Public'], val['Playlist Owners Name'], val['Playlist Id'], val['Playlist Owners Id']]);
+          //                0   1:vis                 2:vis          3:vis          4:vis                        5:vis               6:invisible                7:invisible
+          vPlTable.row.add(['', val['Playlist Name'], val['Tracks'], val['Public'], val['Playlist Owners Name'], val['Playlist Id'], val['Playlist Owners Id'], val['Playlist Uri']]);
       });
       $.each(plDict, function(key, val)
       {
         // if (val['Playlist Owners Id'] !== 'd821vfpc7iz90kbxig72n533l')
         if (val['Playlist Owners Id'] !== vUserId)
-          vPlTable.row.add(['', val['Playlist Name'], val['Tracks'], val['Public'], val['Playlist Owners Name'], val['Playlist Id'], val['Playlist Owners Id']]);
+          //                0   1:vis                 2:vis          3:vis          4:vis                        5:vis               6:invisible                7:invisible
+          vPlTable.row.add(['', val['Playlist Name'], val['Tracks'], val['Public'], val['Playlist Owners Name'], val['Playlist Id'], val['Playlist Owners Id'], val['Playlist Uri']]);
       });
       vPlTable.draw();
 
@@ -304,55 +350,6 @@
     }
   }
 
-  // //-----------------------------------------------------------------------------------------------
-  // function plTab_initPlTableCkboxes()
-  // {
-  //   // on the initial load we select all the playlists for the current user
-  //   let cnt = 0;
-  //   // console.log('__SF__user id = ' + vUserId)
-  //   vPlTabLoading = true;
-  //
-  //   let setCkCnt = 100000;
-  //   if (vUrl.search("127.0.0.1") > 0)
-  //   {
-  //     // for testing on a local host we only select the first 6 playlists
-  //     setCkCnt = 10;
-  //   }
-  //
-  //   let plListNotAutoSelected = false;
-  //   vPlTable.rows().every(function ()
-  //   {
-  //     // console.log(this.data());
-  //     let rowData = this.data()
-  //     if (rowData[6] === vUserId) // ownerId === vUserId
-  //     {
-  //       if (rowData[2] <= 1000) // number of tracks in playlist
-  //       {
-  //         if (cnt < setCkCnt)
-  //         {
-  //           // vPlTable.row(idx).select();
-  //           this.select();
-  //           cnt += 1;
-  //         }
-  //       }
-  //       else
-  //       {
-  //         plListNotAutoSelected = true;
-  //       }
-  //     }
-  //   });
-  //
-  //   if (plListNotAutoSelected == true)
-  //   {
-  //     $("#plTab_info3").text("Playlists that you own with > 1000 tracks are not autmatically selected.");
-  //     setTimeout(function ()
-  //     {
-  //       $("#plTab_info3").text('');
-  //     }, 4500);
-  //   }
-  //   vPlTabLoading = false;
-  // }
-
   //-----------------------------------------------------------------------------------------------
   function plTab_initPlTableCkboxes()
   {
@@ -363,9 +360,8 @@
     if (Object.keys(plDefault).length > 0)
     {
       //console.log('__SF__plTab_afRestorePlTableCkboxes() - reselect rows using plSelectedDict ');
-      let idx = 0;
       vPlTabLoading = true;
-      vPlTable.rows().every(function ()
+      vPlTable.rows().every(function(rowIdx, tableLoop, rowLoop)
       {
         rowData = this.data();
         let rowPlId = rowData[5]
@@ -373,16 +369,15 @@
         {
           //if plTable plId matches plSelectedDict plId than select the row
           if (rowPlId === key)
-            vPlTable.row(idx).select();
+            vPlTable.row(rowIdx).select();
         });
-        idx += 1;
       });
     }
     else
     {
       let cnt = 0;
-      let setCkCnt = 4;
-      vPlTable.rows().every(function ()
+      let setCkCnt = 2;
+      vPlTable.rows().every(function(rowIdx, tableLoop, rowLoop)
       {
         let rowData = this.data()
         // if (rowData[6] === 'd821vfpc7iz90kbxig72n533l') // ownerId === vUserId
@@ -419,19 +414,22 @@
       if (Object.keys(plSelectedDict).length > 0)
       {
         //console.log('__SF__plTab_afRestorePlTableCkboxes() - reselect rows using plSelectedDict ');
-        let idx = 0;
         vPlTabLoading = true;
-        vPlTable.rows().every(function()
+        vPlTable.rows().every(function(rowIdx, tableLoop, rowLoop)
         {
+          // console.log('RestorePlTableCkboxes row this = ' + this);
           rowData = this.data();
           let rowPlId = rowData[5]
           $.each(plSelectedDict, function(key, values)
           {
             //if plTable plId matches plSelectedDict plId than select the row
             if (rowPlId === key)
-              vPlTable.row(idx).select();
+            {
+              vPlTable.row(rowIdx).select();
+              // console.log('RestorePlTableCkboxes() seldict plNm = ' + values['Playlist Name']);
+              // console.log('RestorePlTableCkboxes() row plNm = ' + rowData[1]);
+            }
           });
-          idx += 1;
         });
         vPlTabLoading = false;
       }
@@ -441,18 +439,46 @@
   //-----------------------------------------------------------------------------------------------
   function plTabs_btnReload()
   {
+    // console.log('plTabs_btnReload()')
+    var vInfoReload = null;
+    if (vSearchTabLoading === true)
+    {
+      vInfoReload = $("#searchTab_info3");
+      // console.log('plTabs_btnReload search');
+    }
+    if (vDupsTabLoading === true)
+    {
+      vInfoReload = $("#dupsTab_info3");
+      // console.log('plTabs_btnReload dups');
+    }
+    if (vPlTabLoading === true)
+    {
+      vInfoReload = $("#plTab_info3");
+      // console.log('plTabs_btnReload pl');
+    }
+    if (vArtistsTabLoading === true)
+    {
+      vInfoReload = $("#artistsTab_info3");
+      // console.log('plTabs_btnReload artists');
+    }
+    if (vTracksTabLoading === true)
+    {
+      vInfoReload = $("#tracksTab_info3");
+      // console.log('plTabs_btnReload tracks');
+    }
+    if (vInfoReload != null)
+    {
+      vInfoReload.text("Please 'Reload from Spotify' after the current load has finished.");
+      setTimeout(function ()
+      {
+        vInfoReload.text('');
+      }, 4500);
+      return;
+    }
     // called when the user presses reload from spotify
-    // refetch all the playlists from spotify (loadPlDict) and reload the plTable
+    // refetch all the playlists from spotify (loadPlDict) and reloads the plTable
     // console.log("plTab_reload() - simulating a page refresh click");
-    document.location.reload(true) // page refresh does a complete reload
-  }
-
-  //-----------------------------------------------------------------------------------------------
-  function plTabs_btnRestore()
-  {
-    // console.log('__SF__plTabs_btnRestore()');
-    plTabs_btnClearSearchPlOnClick();
-    plTab_afRefresh();
+    document.location.reload(true) // page refresh does a complete reload (this does not go to the home page)
   }
 
   //-----------------------------------------------------------------------------------------------
@@ -492,23 +518,17 @@
       newPlSelectedDict[rowData[5]] = { 'Playlist Name': rowData[1], 'Playlist Owners Id': rowData[6] };
     });
 
-    // if (Object.keys(newPlSelectedDict).length === 0)  // exit if no playlists are selected
-    // {
-    //   console.log('__SF__plTab_afUpdatePlSelectedDict() exiting because 0 playlists are selected');
-    //   return;
-    // }
-
     console.log('__SF__plTab_afUpdatePlSelectedDict() - vUrl - setPlSelectedDict');
     let response = await fetch(vUrl, { method: 'POST', headers: {'Content-Type': 'application/json',},
                                        body: JSON.stringify({ setPlSelectedDict: 'setPlSelectedDict', newPlSelectedDict: newPlSelectedDict }) });
     if (!response.ok)
-      tabs_throwErrHttp('plTab_afUpdatePlSelectedDict()', response.status, 'tracksTab_errInfo');
+      tabs_throwErrHttp('plTab_afUpdatePlSelectedDict()', response.status, 'plTab_errInfo');
     else
     {
       let reply = await response.json();
       // console.log('__SF__plTab_afUpdatePlSelectedDict() reply = ', reply);
       if (reply['errRsp'][0] !== 1)
-        tabs_throwSvrErr('plTab_afUpdatePlSelectedDict()', reply['errRsp'], 'tracksTab_errInfo')
+        tabs_throwSvrErr('plTab_afUpdatePlSelectedDict()', reply['errRsp'], 'plTab_errInfo')
     }
   }
 
@@ -532,32 +552,23 @@
   {
     // console.log('__SF__plTabs_updateSelectedCntInfo()');
 
-    let tracksToBeLoaded = 0;
-    let plNumTracksInSelectedPl = 0;
+    // this was changed on 4/3/2024 to force the user to select fewer playlists to reduce the track total below 25k
+    // note: that you can load 25k tracks then unselected the playlists and the already loaded tracks remain loaded
+    //       then you can load another 25k tracks by selecting different playlists
+    //       but only the selected playlist are examined by the dups, search, tracks and artists tabs
+    vTotalTracksSelected = 0;
     $.each(vPlTable.rows('.selected').nodes(), function(i, item)
     {
       let rowData = vPlTable.row(this).data();
-      plNumTracksInSelectedPl += parseInt(rowData[2], 10);
-      if (vLoadedPlIds.includes(rowData[5]) === false)
-        tracksToBeLoaded += parseInt(rowData[2], 10);
+      vTotalTracksSelected += parseInt(rowData[2], 10);
     });
 
     let count = vPlTable.rows({ selected: true }).count();
-    tabs_setLabel('plTab_info1', 'Selected Playlists: ' + count + '&nbsp &nbsp &nbsp &nbsp &nbsp' + ' Selected Tracks: '+ plNumTracksInSelectedPl);
-
-    // console.log('tracksToBeLoaded = ', tracksToBeLoaded);
-    if ((vTrackLoadingWarning === false) && (tracksToBeLoaded > 30000))
-    {
-      vTrackLoadingWarning = true;
-      msg = 'With the currently selected playlists  ' + tracksToBeLoaded + '  tracks will need to be loaded.\n\n' +
-          'It is highly recommended that you select fewer playlists, to reduce the number of tracks that need to be loaded, before continiuing.\n\n' +
-          'It is significantly more efficient to work on smaller batches of playlists.\n';
-      alert(msg);
-    }
+    tabs_setLabel('plTab_info1', 'Selected Playlists: ' + count + '&nbsp &nbsp &nbsp &nbsp &nbsp' + ' Selected Tracks: '+ vTotalTracksSelected);
   }
 
   //-----------------------------------------------------------------------------------------------
-  function plTabs_btnClearSearchPlOnClick()
+  function plTabs_btnClearSearchPlOnClick(focusOnField=true)
   {
     //console.log('__SF__plTabs_btnClearSearchPlNameOnClick()');
     // clear search boxes under pl table
@@ -568,14 +579,18 @@
       $(this).keyup();
     });
 
-    // last element edited gets focus
-    let searchInputBox = $('input[name="'+vPlTableLastSearchCol+'"]');
-    searchInputBox.focus();
+    if (focusOnField)
+    {
+      // last element edited gets focus
+      let searchInputBox = $('input[name="'+vPlTableLastSearchCol+'"]');
+      searchInputBox.focus();
+    }
   }
 
   //-----------------------------------------------------------------------------------------------
   function plTabs_btnSelectAll()
   {
+    // 4/3/2024 the button was removed to prevent user from selecting all the playlists
     // console.log('__SF__plTabs_btnSelectAll()')
     vPlTabLoading = true;
     vPlTable.rows().select();
@@ -608,16 +623,17 @@
 
     let selectRowData = '';
     vPlTabLoading = true;
-    vPlTable.rows().deselect();
+    // vPlTable.rows().deselect();  // 4/3/2024 only show owner do not select/deselect to prevent auto select of all users playlists
     vPlTable.rows().every(function()
     {
       rowData = this.data();
       // if ((rowData[4] + ' / ' + rowData[6]) === curSel) // ownerName / ownerId === curSel
       if (rowData[4] === curSel) // just using ownerName
       {
-        this.select();
+        // this.select(); // 4/3/2024 only show owner do not select/deselect to prevent auto select of all users playlists
         if (selectRowData === '')  // recreate the unique class name assigned to row during init
           selectRowData = "c" + rowData[1].replace(/\W/g, '') + rowData[5].replace(/\W/g, '') // use playlist Name and Id
+          return false;
       }
     });
     vPlTabLoading = false;
@@ -637,91 +653,6 @@
     }
   }
 
-
-  //-----------------------------------------------------------------------------------------------
-  function plTabs_btnDelete()
-  {
-    console.log('__SF__plTabs_btnDelete()');
-    let cnt = vPlTable.rows({ selected: true }).count();
-    if (cnt == 0)
-    {
-      alert('First select a playlist before pressing delete.');
-      return;
-    }
-    if (cnt > 1)
-    {
-      alert('You can only delete one playlist at a time.');
-      return;
-    }
-
-    let plNm =  '';
-    let plId =  '';
-
-    $.each(vPlTable.rows('.selected').nodes(), function(i, item)
-    {
-      let rowData = vPlTable.row(this).data();
-      plNm =  rowData[1];
-      plId =  rowData[5];
-    });
-
-    msg = 'Please confirm that you would like to delete this playlist: \n' +
-           '   ' + plNm + '\n\n' +
-          'FYI: You can recover deleted playlists on you spotify account page.\n';
-
-    if (confirm(msg) == false)
-      return;
-
-    plTab_afDeletePlaylistSeq(plNm, plId);
-  }
-
-  //-----------------------------------------------------------------------------------------------
-  async function plTab_afDeletePlaylistSeq(plNm, plId)
-  {
-    try
-    {
-      var deleteErr = false;
-      console.log("__SF__plTab_afDeletePlaylistSeq()");
-      vPlTabLoading = true;
-      tabs_set2Labels('plTab_info1', 'Loading...', 'plTab_info2', 'Loading...');
-      tabs_progBarStart('plTab_progBar', 'plTab_progStat1', 'Deleting Playlist...', showStrImmed=true);
-      await tracksTab_afDeletePlaylist(plNm, plId);
-    }
-    catch(err)
-    {
-      deleteErr = true;
-      // console.log('__SF__plTab_afDeletePlaylistSeq() caught error: ', err);
-      tabs_errHandler(err);
-    }
-    finally
-    {
-      // console.log('__SF__plTab_afDeletePlaylistSeq() finally.');
-      tabs_progBarStop('plTab_progBar', 'plTab_progStat1', '');
-      vPlTabLoading = false;
-      if (deleteErr == false)
-        plTabs_btnReload();
-    }
-  }
-
-  //-----------------------------------------------------------------------------------------------
-  async function tracksTab_afDeletePlaylist(plNm, plId)
-  {
-    console.log('__SF__tracksTab_afDeletePlaylist() - vUrl - CreatePlaylist');
-    let response = await fetch(vUrl, { method: 'POST', headers: {'Content-Type': 'application/json',},
-                                       body: JSON.stringify({ deletePlaylist: 'deletePlaylist',
-                                                                    plNm: plNm,
-                                                                    plId: plId,
-                                                                  }), });
-    if (!response.ok)
-      tabs_throwErrHttp('tracksTab_afDeletePlaylist()', response.status, 'tracksTab_errInfo');
-    else
-    {
-      let reply = await response.json();
-      // console.log('__SF__tracksTab_afDeletePlaylist() reply = ', reply);
-      if (reply['errRsp'][0] !== 1)
-        tabs_throwSvrErr('tracksTab_afDeletePlaylist()', reply['errRsp'], 'tracksTab_errInfo')
-    }
-  }
-
   //-----------------------------------------------------------------------------------------------
   function plTabs_btnHelp()
   {
@@ -730,25 +661,12 @@
     $("#btnInfoTab")[0].click();
   }
 
-    //-----------------------------------------------------------------------------------------------
-  function plTab_onDblClickExeTm()
+  //-----------------------------------------------------------------------------------------------
+  function plTabs_btnHelpRefresh()
   {
-    // console.log("__SF__plTab_onDblClickExeTm = ", vShowExeTm);
-
-    // if you click "Playlists selected on this tab determines..." at the bottom of theplTab load times for each tab will be displayed
-    if (vShowExeTm == 0)
-    {
-      vShowExeTm = 1;
-      $("#plTab_ExeTm").text(vPlTmExe);
-      $('#cookieDisp').text(vSid);
-      $('#cookieDisp').show();
-    }
-    else
-    {
-      vShowExeTm = 0;
-      $("#plTab_ExeTm").text('');
-      $('#cookieDisp').hide();
-    }
+    // console.log('__SF__plTabs_btnHelp()');
+    vHtmlInfoFn = 'helpTextRemoveErrors.html';
+    $("#btnInfoTab")[0].click();
   }
 
   //-----------------------------------------------------------------------------------------------
@@ -790,8 +708,24 @@
     $.each(vPlTable.rows('.selected').nodes(), function(i, item)
     {
       let rowData = vPlTable.row(this).data();
-      plDefaultDict[rowData[5]] = { 'Playlist Name': rowData[1], 'Playlist Owners Id': rowData[6] };
+      // replace all semicolons in plNm w/ spaces
+      // semicolons are used by plTab_getCookiePlDefault() as a pl entry separator
+      // the important part of the cookie is the plId, the plNm is not important and is there for debugging purposes
+      // example: Johannes Brahms – Brahms: Symphony No. 4; Academic Festival Overture; Tragic Overture
+      // console.log("plName = ", rowData[1])
+      plNameCleaned = rowData[1].replace(/;/g, " ");  // replace all ; w/ spaces
+      // console.log("plNameCleaned = ", plNameCleaned)
+      plDefaultDict[rowData[5]] = { 'Playlist Name': plNameCleaned, 'Playlist Owners Id': rowData[6] };
     });
+
+    // where mozilla stores the cookie fill for spotifyfinder.com
+    // C:\Users\lfg70\AppData\Roaming\Mozilla\Firefox\Profiles\x4oiq1jf.default-release-1583154523772\cookies.sqlite
+
+    // deleting the cookie file:
+    // - goto firefox-settings-privacy & security-cookies & site data-manage data
+    // - you have to reopen settings after you delete the cookie file to look see the new cookie file
+    // - when using the local test server firefox stores the cookies under 127.0.0.1
+    // - when using the pyany server firefox stores the cookies under spotifyfinder.com
 
     const d = new Date();
     d.setTime(d.getTime() + (730 * 24 * 60 * 60 * 1000));
@@ -829,6 +763,74 @@
     return plDefaultDict;
   }
 
+  //-----------------------------------------------------------------------------------------------
+  function plTab_btnDelete()
+  {
+    plTab_afDeletePlaylist();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function plTab_afDeletePlaylist()
+  {
+    // console.log('__SF__plTab_afDeletePlaylist()');
+    let cnt = vPlTable.rows({ selected: true }).count();
+    if (cnt == 0)
+    {
+      alert('First select a playlist before pressing delete.');
+      return;
+    }
+    if (cnt > 1)
+    {
+      alert('You can only delete one playlist at a time.');
+      return;
+    }
+
+    let plNm =  '';
+    let plId =  '';
+
+    $.each(vPlTable.rows('.selected').nodes(), function(i, item)
+    {
+      let rowData = vPlTable.row(this).data();
+      plNm =  rowData[1];
+      plId =  rowData[5];
+    });
+
+    msg = 'Please confirm that you would like to delete this playlist: \n' +
+           '   ' + plNm + '\n\n' +
+          'FYI: You can recover deleted playlists on your spotify account page.\n';
+
+    if (confirm(msg) == false)
+      return;
+
+    await plTab_afDeletePlaylistSeq(plNm, plId);
+    await plTab_afPartialReloadSeq(false);
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function plTab_afDeletePlaylistSeq(plNm, plId)
+  {
+    try
+    {
+      // console.log("__SF__plTab_afDeletePlaylistSeq()");
+      var deleteErr = false;
+      vPlTabLoading = true;
+      tabs_set2Labels('plTab_info1', 'Loading...', 'plTab_info2', 'Loading...');
+      tabs_progBarStart('plTab_progBar', 'plTab_progStat1', 'Deleting Playlist...', showStrImmed=true);
+      await tabs_afDeletePlaylist(plNm, plId);
+    }
+    catch(err)
+    {
+      deleteErr = true;
+      // console.log('__SF__plTab_afDeletePlaylistSeq() caught error: ', err);
+      tabs_errHandler(err);
+    }
+    finally
+    {
+      // console.log('__SF__plTab_afDeletePlaylistSeq() finally.');
+      tabs_progBarStop('plTab_progBar', 'plTab_progStat1', '');
+      vPlTabLoading = false;
+    }
+  }
 
   //-----------------------------------------------------------------------------------------------
   function plTab_btnClearPlNmText()
@@ -850,7 +852,6 @@
     // console.log('__SF__plTab_afRenamePlaylistSeq()');
     try
     {
-      done = false
       let cnt = vPlTable.rows({ selected: true }).count();
       if (cnt == 0)
       {
@@ -884,18 +885,57 @@
         return;
       }
 
-      vPlTabLoading = true;
-      tabs_progBarStart('plTab_progBar', 'plTab_progStat1', 'Renaming Playlist...', showStrImmed=true);
-
       let vPlId = '';
+      let vPlUserId = '';
       $.each(vPlTable.rows('.selected').nodes(), function(i, item)
       {
         let rowData = vPlTable.row(this).data();
         vPlId =  rowData[5];
+        vPlUserId = rowData[6]
       });
 
+      if (vPlUserId !== vUserId)
+      {
+        alert('You can not rename a playlist you do not own.');
+        return;
+      }
+
+      vPlTabLoading = true;
+      tabs_progBarStart('plTab_progBar', 'plTab_progStat1', 'Renaming Playlist...', showStrImmed=true);
+
       await plTab_afRenamePlaylist(vPlId, vNewPlNm);
-      done = true
+
+      // Spotify can be slow to update the list of playlists so we check for up to 30 seconds
+      let reNmCnt = 0;
+      let reNmFound = false;
+      while ((reNmCnt < 20) && (reNmFound === false))
+      {
+        // this will fetch a new plDict from spotify
+        await plTab_afLoadPlDict(false);
+
+        let plDict = await tabs_afGetPlDict();
+        $.each(plDict, function (key, values)
+        {
+          if (vNewPlNm == values['Playlist Name'])
+            reNmFound = true;
+        });
+        reNmCnt += 1;
+        console.log('__SF__plTab_afRenamePlaylistSeq() reNmCnt = ' + reNmCnt);
+        await new Promise(r => setTimeout(r, 6000));
+      }
+
+      // spotify can be slow
+      if (reNmFound == false)
+      {
+        msg = 'The playlist rename was successfully submitted to Spotify.\n' +
+            'but Spotify has not yet updated it\'s database.\n\n' +
+            'It can take upto 2 minutes for the rename to take affect.\n\n' +
+            'You can press \'Reload from Spotify\' to reload the playlist table.\n';
+        alert(msg);
+      }
+
+      $("#plTab_plNmTextInput").val('');
+      await plTab_afPartialReloadSeq(false);
     }
     catch(err)
     {
@@ -907,8 +947,6 @@
       // console.log('__SF__plTab_afMvplSeq() finally.');
       tabs_progBarStop('plTab_progBar', 'plTab_progStat1', '');
       vPlTabLoading = false;
-      if (done)
-        plTabs_btnReload()
     }
   }
 
@@ -929,3 +967,191 @@
         tabs_throwSvrErr('plTab_afRenamePlaylist()', reply['errRsp'], 'tabs_errInfo')
     }
   }
+  
+  //-----------------------------------------------------------------------------------------------
+  function plTab_btnRefresh()
+  {
+    // console.log('__SF__plTab_btnRefresh()');
+    plTab_afRefreshPlaylist();
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function plTab_afRefreshPlaylist()
+  {
+    // console.log('__SF__plTab_refresh()');
+    let cnt = vPlTable.rows({ selected: true }).count();
+    if (cnt > 1)
+    {
+      alert('Select one playlist to Refresh.\nCurrently there are ' + cnt + ' playlists selected.');
+      return;
+    }
+
+    let rowData;
+    $.each(vPlTable.rows('.selected').nodes(), function(i, item)
+    {
+      rowData = vPlTable.row(this).data();
+    });
+
+    plNm = rowData[1];
+    nTrks = rowData[2];
+    plId = rowData[5];
+    ownerId = rowData[6];
+    // console.log('trks: ' + nTrks + ', plId: ' + plId + ', ownerId: ' + ownerId + ', plNm: ' + plNm);
+
+    if (nTrks === 0)
+    {
+      alert('The playlist selected does not have any tracks.');
+      return;
+    }
+
+    //---- check if user owns playlist
+    if (ownerId !== vUserId)
+    {
+      alert('You can not refresh a playlist you do not own.');
+      return;
+    }
+
+    if (nTrks > 3000)
+    {
+      msg = 'Refresh is only allowed on playlists with less than 3000 tracks.\n' +
+            'You can refresh the playlist using the Spotify App.\n' +
+            'See the Help Page on \'Refreshing to fix Remove Errors\' for details\n';
+      alert(msg);
+      return;
+    }
+
+    msg = 'Refresh this playlist:\n' +
+          '   ' + plNm + '\n\n' +
+          'Note 1: A backup of this playlist is made prior to the Refresh.\n' +
+          'Note 2: Once the Refresh completes, and you are satisfied with the results, you can delete the backup.\n\n' +
+          '(*** only do this if you are seeing remove errors on this playlist ***)\n';
+    if (confirm(msg) == false)
+      return;
+
+    rv = await plTab_afRefreshPlaylistSeq(plNm, plId);
+    await plTab_afPartialReloadSeq(true);
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function plTab_afRefreshPlaylistSeq(plNm, plId)
+  {
+    try
+    {
+      // console.log("__SF__plTab_afRefreshPlaylistSeq()");
+      vPlTabLoading = true;
+      tabs_progBarStart('plTab_progBar', 'plTab_progStat1', 'Refreshing Playlist...', showStrImmed = true);
+
+      let reply = await tabs_afRefreshPlaylist(plNm, plId, true);
+      // console.log('reply = ', reply['errRsp']);
+      buPlNm = reply['buPlNm'];
+
+      // did we have a refresh error
+      if (reply['errRsp'][0] != 1)
+      {
+        if (reply['errRsp'][0] === -52) // errRefreshPlaylistLd
+        {
+          msg = 'Refresh Failed\n' +
+              'Failed to load tracks for the selected playlist:\n' +
+              '   ' + plNm + '\n' +
+              'This playlist was not modified.\n\n' +
+              'A session restart is needed.\n' +
+              'Press Ok and you will be redirected to the home page.\n';
+          alert(msg);
+          let urlSpotifyFinderStartPage = window.location.origin;
+          location.replace(urlSpotifyFinderStartPage); // goto home page
+        }
+
+        if (reply['errRsp'][0] === -53) // errRefreshPlaylistBu
+        {
+          msg = 'Refresh Failed\n' +
+              'Failed to create a playlist backup.\n' +
+              'The original playlist was not modified.\n\n' +
+              'A session restart is needed.\n' +
+              'Press Ok and you will be redirected to the home page.\n';
+          alert(msg);
+          let urlSpotifyFinderStartPage = window.location.origin;
+          location.replace(urlSpotifyFinderStartPage); // goto home page
+        }
+
+        if (reply['errRsp'][0] === -54) // errRefreshPlaylistWr
+        {
+          msg = '*** READ THIS MESSAGE CAREFULLY ***\n' +
+              'Refresh Playlist Failed\n' +
+              'Unable to copy tracks from backup to original playlist.\n' +
+              'A backup playlist was successfully created:\n' +
+              '   ' + buPlNm + '\n' +
+              'You may need to recover from this error by using the Spotify App to copy the tracks from the backup playlist to the original playlist.\n\n' +
+              'A session restart is needed.\n' +
+              'Press Ok and you will be redirected to the home page.\n';
+          alert(msg);
+          let urlSpotifyFinderStartPage = window.location.origin;
+          location.replace(urlSpotifyFinderStartPage); // goto home page
+        }
+
+        if (reply['errRsp'][0] === -55) // errRefreshPlaylistReLd
+        {
+          // reloading the playlist threw an error after the refresh write finished ok
+          msg = 'Refresh Playlist Finished Successfully\n\n' +
+              'A backup playlist was created:\n' +
+              '   ' + buPlNm + '\n' +
+              'Once you are satified with the results, you can delete the backup.\n' +
+              'Press Ok and you will be redirected to the home page.\n';
+          alert(msg);
+          let urlSpotifyFinderStartPage = window.location.origin;
+          location.replace(urlSpotifyFinderStartPage); // goto home page
+        }
+
+        if (reply['errRsp'][0] === -51) // errRefreshPlaylist
+        {
+          msg = 'Refresh Failed\n\n' +
+              'A session restart is needed.\n' +
+              'Press Ok and you will be redirected to the home page.\n';
+          alert(msg);
+          let urlSpotifyFinderStartPage = window.location.origin;
+          location.replace(urlSpotifyFinderStartPage); // goto home page
+        }
+      }
+
+      await new Promise(r => setTimeout(r, 4000));  // Spotify can be slow to update the list of playlists
+
+      // console.log("__SF__plTab_afRefreshPlaylistSeq() success.");
+      msg = 'Refresh Playlist Finished Successfully\n\n' +
+          'A backup playlist was created:\n' +
+          '   ' + buPlNm + '\n' +
+          'Once you are satified with the results, you can delete the backup.\n' +
+          'At this point you should be able remove any track from this playlist.\n'
+      alert(msg);
+    }
+    catch(err)
+    {
+      // console.log('__SF__plTab_afRefreshPlaylistSeq() caught error: ', err);
+      tabs_errHandler(err);
+    }
+    finally
+    {
+      // console.log('__SF__plTab_afRefreshPlaylistSeq() finally.');
+      tabs_progBarStop('plTab_progBar', 'plTab_progStat1', '');
+      vPlTabLoading = false;
+    }
+  }
+
+  //-----------------------------------------------------------------------------------------------
+  async function tabs_afRefreshPlaylist(plNm, plId, reload)
+  {
+    console.log('__SF__plTabs_afRefreshPlaylist() - vUrl - RefreshPlaylist');
+    let response = await fetch(vUrl, { method: 'POST', headers: {'Content-Type': 'application/json',},
+                                       body: JSON.stringify({ refreshPlaylist: 'refreshPlaylist',
+                                                                    plNm: plNm,
+                                                                    plId: plId,
+                                                                    reload: reload,
+                                                                  })});
+    if (!response.ok)
+      tabs_throwErrHttp('tabs_afRefreshPlaylist()', response.status, 'tabs_errInfo');
+    else
+    {
+      let reply = await response.json();
+      // console.log('__SF__plTabs_afRefreshPlaylist() reply = ', reply);
+      return reply
+    }
+  }
+  

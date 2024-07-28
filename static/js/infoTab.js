@@ -43,6 +43,9 @@
       case 'helpTextAbout.html':
         $('#infoTab_btnAppInfo').focus();
         break;
+      case 'helpTextRemoveErrors.html':
+        $('#infoTab_btnRemoveErrors').focus();
+        break;
       case 'helpTextTabPl.html':
         $('#infoTab_btnPlaylistInfo').focus();
         break;
@@ -111,6 +114,12 @@
   }
 
   //-----------------------------------------------------------------------------------------------
+  function infoTab_btnRemoveErrors()
+  {
+    infoTab_afLoadInfo('helpTextRemoveErrors.html');
+  }
+
+  //-----------------------------------------------------------------------------------------------
   function infoTab_btnPlaylistInfo()
   {
     infoTab_afLoadInfo('helpTextTabPl.html');
@@ -171,9 +180,11 @@
   //-----------------------------------------------------------------------------------------------
   function infoTab_addClientLogErrMsg(errObj, stackTrace)
   {
-    // console.log('__SF__infoTab_addClientLogErrMsg err.stack = ', err.stack);
+    // console.log('__SF__infoTab_addClientLogErrMsg errObj = ', errObj.message);
 
     let arrErrStrs = [];
+    errStr = errObj.message;
+
     arrErrStrs.push((new Date().toLocaleString()).replace(',',' '));
     let errName = 'ErrorName: ' + errObj.name;
     arrErrStrs.push(errName);
