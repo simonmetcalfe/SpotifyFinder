@@ -820,11 +820,11 @@
   //-----------------------------------------------------------------------------------------------
   async function dupsTab_btnRmTracksByIdOnClick()
   {
-    // console.log('__SF__dupsTab_btnRmTracksById()')
+    console.log('__SF__dupsTab_btnRmTracksById()')
 
     let cbRmPlId = $('#dupsTab_cbRmPlId')
     let curSel = $('#dupsTab_cbRmPlId option:selected').text();
-    // console.log('__SF__dupsTab_btnRmTracksById() selected = ' + curSel);
+    console.log('__SF__dupsTab_btnRmTracksById() selected = ' + curSel);
     if (curSel === cbRmTracksById)
     {
       alert('No tracks removed. Please select a playlist before pressing remove.');

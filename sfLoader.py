@@ -683,10 +683,17 @@ class SpfLoader():
       # spotify only returns 50 playlists at a time so we loop until we have them all
       # 'https://api.spotify.com/v1/me/playlists'
       results = this.oAuthGetSpotifyObj().current_user_playlists(limit=50, offset=idx)
-      # print('>>num playlist fetched = ' + str(len(results['items'])))
+      print('>>num playlist fetched = ' + str(len(results['items'])))
       nPlRxd = len(results['items'])
 
       for i, item in enumerate(results['items']):
+        print(i)
+        print()
+
+        if item is None:  # Check if item is None
+          print(item)
+          continue  # Skip to the next iteration   
+        print()
         pub = 'Public' if item['public'] == True else 'Private'
         ownerId = item['owner']['id']
         ownerNm = item['owner']['display_name']
