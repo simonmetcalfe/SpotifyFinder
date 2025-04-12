@@ -379,7 +379,7 @@
       let dupsClrList = reply['dupsClrList'];
       $.each(dupsTrackList, function(key, tvals)
       {
-        vDupsTable.row.add(['', tvals['Track Name'], tvals['Playlist Name'], tvals['Track Position'], tvals['Artist Name'],
+        vDupsTable.row.add(['', '<i class="material-icons" style="color: #1DB954; cursor: pointer;">play_arrow</i>', tvals['Track Name'], tvals['Playlist Name'], tvals['Track Position'], tvals['Artist Name'],
                                 tvals['Album Name'], tvals['Duration Hms'], tvals['Playlist Owners Name'], tvals['Track Id'],
                                 tvals['Playlist Id'], tvals['Track Uri'], dupsClrList[idx], tvals['Playlist Owners Id'] ]);
         idx++;
@@ -898,3 +898,11 @@
     // console.log('__SF__dupsTab_cbDurationOnChange() durVal: ' + durTimeDiff);
     dupsTab_afFindDupsSeq();
   }
+
+  $('#dupsTable').on('click', '.material-icons', function() {
+    let rowData = vDupsTable.row($(this).closest('tr')).data();
+    let trackId = rowData[9];  // TrackId is at index 9
+    if (trackId) {
+      tabs_afPreviewTrack(trackId);
+    }
+  });

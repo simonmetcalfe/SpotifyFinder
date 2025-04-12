@@ -506,6 +506,19 @@ def Tabs():
           retVal = oTester.runTest(testIndex)
           return jsonify({ 'errRsp': retVal})
 
+        elif (key == 'previewTrack'):
+            try:
+                track_id = rqJson['trackId']
+                body = rqJson['body']
+                
+                # Use the same method as playTracks()
+                retVal = oLoader.oAuthGetSpotifyObj().start_playback(uris=[f"spotify:track:{track_id}"], position_ms=30000)
+                if retVal is None:
+                    return jsonify({'errRsp': [1, '']})
+                return jsonify({'errRsp': [0, str(retVal)]})
+            except Exception as e:
+                return jsonify({'errRsp': [0, str(e)]})
+
         # - this is the error in the logs when a route return nothing....
         #   File "C:\Users\lfg70\.aa\LFG_Code\Python\WA_SpotifyFinder\venv\Lib\site-packages\flask\app.py", line 2097, in make_response
         #     raise TypeError(
@@ -538,7 +551,6 @@ def Tabs():
 
   # print('>>/Tabs render_template sfTabs.html')
   return render_template("sfTabs.html")
-
 
 # notes on creating a distro (creates a dist dir)
 #------------------------------------------------------------------------------------------------------------

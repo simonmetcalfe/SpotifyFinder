@@ -712,3 +712,28 @@
       $("#btnInfoTab")[0].click();
     }
   }
+
+  async function tabs_afPreviewTrack(trackId) {
+    try {
+      let body = {
+        "uris": [`spotify:track:${trackId}`],
+        "position_ms": 30000
+      };
+  
+      let response = await fetch(vUrl, { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ previewTrack: 'previewTrack', trackId: trackId, body: body })
+      });
+  
+      if (!response.ok)
+        tabs_throwErrHttp('tabs_afPreviewTrack()', response.status, 'dupsTab_errInfo');
+      
+      let reply = await response.json();
+      if (reply['errRsp'][0] !== 1)
+        tabs_throwSvrErr('tabs_afPreviewTrack()', reply['errRsp'], 'dupsTab_errInfo');
+    }
+    catch(err) {
+      tabs_errHandler(err);
+    }
+  }
