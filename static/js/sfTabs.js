@@ -426,7 +426,7 @@
   }
 
   //-----------------------------------------------------------------------------------------------
-  async function tabs_afPlayTracks(contextUri='', trackUris = [])
+  async function tabs_afPlayTracks(contextUri='', trackUris = [], position_ms=0)
   {
     // possible errors
     // - not a premium user error
@@ -453,7 +453,8 @@
                                 method: 'POST', headers: {'Content-Type': 'application/json',},
                                 body: JSON.stringify({playTracks: 'playTracks',
                                                            contextUri: contextUri,
-                                                           trackUris: trackUris})});
+                                                           trackUris: trackUris,
+                                                           position_ms: position_ms})});
     if (!response.ok)
       tabs_throwErrHttp('tabs_afPlayTracks()', response.status, 'tabs_errInfo');
     else

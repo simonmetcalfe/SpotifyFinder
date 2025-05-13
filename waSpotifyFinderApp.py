@@ -417,7 +417,8 @@ def Tabs():
           # print('>>/Tabs playTrack()')
           contextUri = rqJson['contextUri']
           trackUris = rqJson['trackUris']
-          retVal = oLoader.playTracks(contextUri, trackUris);
+          position_ms = rqJson.get('position_ms', 0)  # Default to 0 if not provided
+          retVal = oLoader.playTracks(contextUri, trackUris, position_ms);
           if ((retVal[0] == 1) and (oLoader.sMySqlDbName != '')):
             oLoader.updateDbVisitCnt(mysql, 'Play')
           return jsonify({ 'errRsp': retVal })
@@ -509,7 +510,9 @@ def Tabs():
         elif (key == 'previewTrack'):
             track_id = rqJson['trackId']
             track_uri = [f"spotify:track:{track_id}"]
-            retVal = oLoader.playTracks('', track_uri)  # Empty context_uri, just track URI
+            retVal = oLoader.playTracks('', track_uri, 30000)  # Empty context_uri, track URI, start at 30 seconds
+            if ((retVal[0] == 1) and (oLoader.sMySqlDbName != '')):
+                oLoader.updateDbVisitCnt(mysql, 'Play')
             return jsonify({'errRsp': retVal})
 
         # - this is the error in the logs when a route return nothing....

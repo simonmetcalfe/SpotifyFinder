@@ -920,3 +920,18 @@
       }
     }
   });
+
+  function dupsTab_playTrack(trackUri)
+  {
+    // console.log('__SF__dupsTab_playTrack() - trackUri = ' + trackUri);
+    // play/pause/next/add to queue all require spotify premium account...the ui btn should have been disabled...
+    if (vUserProduct != 'premium')
+      return;
+
+    // console.log('__SF__dupsTab_playTrack() - trackUri = ' + trackUri);
+    tabs_afPlayTracks('', [trackUri], 30000).then(function(errMsg)
+    {
+      if (errMsg !== '')
+        $("#dupsTab_info3").text(errMsg);
+    });
+  }
