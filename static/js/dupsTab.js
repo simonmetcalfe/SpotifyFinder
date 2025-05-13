@@ -899,10 +899,24 @@
     dupsTab_afFindDupsSeq();
   }
 
-  $('#dupsTable').on('click', '.material-icons', function() {
+  $('#dupsTable').on('click', '.material-icons', async function(e) {
+    e.stopPropagation(); // Prevent row selection
     let rowData = vDupsTable.row($(this).closest('tr')).data();
     let trackId = rowData[9];  // TrackId is at index 9
     if (trackId) {
-      tabs_afPreviewTrack(trackId);
+      try {
+        let response = await tabs_afPreviewTrack(trackId);
+        if (response && response.includes('NO_ACTIVE_DEVICE')) {
+          $("#dupsTab_info3").text("No active Spotify device found. Please open Spotify and start playing music first.");
+          setTimeout(function() {
+            $("#dupsTab_info3").text('');
+          }, 4500);
+        }
+      } catch(err) {
+        $("#dupsTab_info3").text("Failed to play track. Please ensure Spotify is open and playing.");
+        setTimeout(function() {
+          $("#dupsTab_info3").text('');
+        }, 4500);
+      }
     }
   });

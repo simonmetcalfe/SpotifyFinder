@@ -715,23 +715,24 @@
 
   async function tabs_afPreviewTrack(trackId) {
     try {
-      let body = {
-        "uris": [`spotify:track:${trackId}`],
-        "position_ms": 30000
-      };
-  
-      let response = await fetch(vUrl, { 
-        method: 'POST', 
+      let response = await fetch(vUrl, {
+        method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ previewTrack: 'previewTrack', trackId: trackId, body: body })
+        body: JSON.stringify({ previewTrack: 'previewTrack', trackId: trackId })
       });
   
       if (!response.ok)
         tabs_throwErrHttp('tabs_afPreviewTrack()', response.status, 'dupsTab_errInfo');
       
       let reply = await response.json();
-      if (reply['errRsp'][0] !== 1)
+      if (reply['errRsp'][0] !== 1) {
+        // Special handling for NO_ACTIVE_DEVICE error
+        if (reply['errRsp'][8] && reply['errRsp'][8].includes('NO_ACTIVE_DEVICE')) {
+          return 'NO_ACTIVE_DEVICE';
+        }
         tabs_throwSvrErr('tabs_afPreviewTrack()', reply['errRsp'], 'dupsTab_errInfo');
+      }
+      return '';
     }
     catch(err) {
       tabs_errHandler(err);

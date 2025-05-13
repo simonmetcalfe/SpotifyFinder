@@ -507,17 +507,10 @@ def Tabs():
           return jsonify({ 'errRsp': retVal})
 
         elif (key == 'previewTrack'):
-            try:
-                track_id = rqJson['trackId']
-                body = rqJson['body']
-                
-                # Use the same method as playTracks()
-                retVal = oLoader.oAuthGetSpotifyObj().start_playback(uris=[f"spotify:track:{track_id}"], position_ms=30000)
-                if retVal is None:
-                    return jsonify({'errRsp': [1, '']})
-                return jsonify({'errRsp': [0, str(retVal)]})
-            except Exception as e:
-                return jsonify({'errRsp': [0, str(e)]})
+            track_id = rqJson['trackId']
+            track_uri = [f"spotify:track:{track_id}"]
+            retVal = oLoader.playTracks('', track_uri)  # Empty context_uri, just track URI
+            return jsonify({'errRsp': retVal})
 
         # - this is the error in the logs when a route return nothing....
         #   File "C:\Users\lfg70\.aa\LFG_Code\Python\WA_SpotifyFinder\venv\Lib\site-packages\flask\app.py", line 2097, in make_response
