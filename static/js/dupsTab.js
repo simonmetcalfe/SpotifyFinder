@@ -442,7 +442,7 @@
     if (rowAlreadySelected == false)
     {
       let rowData = vDupsTable.row(cell.node()).data()
-      if (rowData[12] != vUserId)    // playlistOwnerId != vUserId
+      if (rowData[13] != vUserId)    // playlistOwnerId != vUserId (index 13, not 12)
       {
         e.preventDefault();
         $("#dupsTab_info3").text("Track can not be selected/removed since you are not the playlist owner.");
@@ -453,7 +453,7 @@
         return;
       }
 
-      if (!rowData[8])    // !trackId tests for "", null, undefined, false, 0, NaN
+      if (!rowData[9])    // !trackId tests for "", null, undefined, false, 0, NaN (index 9, not 8)
       {
         e.preventDefault();
         $("#dupsTab_info3").text("Track can not be selected/removed since it does not have a track id.");
@@ -563,8 +563,8 @@
         // ignore tracks with a track uri containing: 'spotify:local:'  we can not delete them since the track id is null
         // example: user id: earono, plnm: Sing Songs, track: Stil with you Jungkook
         // if (rowData[10].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[8]) )
-        if (rowData[8])  // add the track uri to the list if the track id is not null
-          rmTrackList.push({'Playlist Id': rowData[9], 'Track Uri': rowData[10], 'Track Position': parseInt(rowData[3])});
+        if (rowData[9])  // add the track uri to the list if the track id is not null (index 9, not 8)
+          rmTrackList.push({'Playlist Id': rowData[10], 'Track Uri': rowData[11], 'Track Position': parseInt(rowData[4])});
       });
 
       if (Object.keys(rmTrackList).length === 0)
@@ -797,18 +797,18 @@
       vDupsTable.rows().every(function ()
       {
         rowData = vDupsTable.row(this).data();
-        if (rowData[9] == plId)
+        if (rowData[10] == plId)  // Playlist Id is at index 10, not 9
         {
           // originally we just passed a list of track ids but when adding support for episodes we now pass a list of track uri's
-          if (rowData[10])  // track uri is not "", null, undefined, false, 0, NaN
+          if (rowData[11])  // track uri is not "", null, undefined, false, 0, NaN (index 11, not 10)
           {
-            // console.log('remove by id: track id = ' + rowData[10])
+            // console.log('remove by id: track id = ' + rowData[11])
 
             // ignore tracks with a track uri containing: 'spotify:local:'  we can not delete them since the track id is null
             // example: user id: earono, plnm: Sing Songs, track: Stil with you Jungkook
-            // if (rowData[10].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[8]) )
-            if (rowData[8]) // add the track uri to the list if the track id is not null
-              rmTrackIdsSet.add(rowData[10]);
+            // if (rowData[11].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[9]) )
+            if (rowData[9]) // add the track uri to the list if the track id is not null (index 9, not 8)
+              rmTrackIdsSet.add(rowData[11]);
           }
         }
       });
@@ -900,7 +900,8 @@
   }
 
   $('#dupsTable').on('click', '.material-icons', async function(e) {
-    e.stopPropagation(); // Prevent row selection
+    e.preventDefault();
+    e.stopImmediatePropagation(); // Prevent other click handlers from firing
     let rowData = vDupsTable.row($(this).closest('tr')).data();
     let trackId = rowData[9];  // TrackId is at index 9
     if (trackId) {

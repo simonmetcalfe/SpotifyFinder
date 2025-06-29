@@ -1107,7 +1107,15 @@ class SpfLoader():
             continue
           # skip over tracks that are already in the spotRmTrackList match on uri and position
           if this.isTrackByPosInSpotRmTrackList(spotRmTrackList, item2['Track Uri'], item2['Track Position']) == False:
-            spotRmTrackList.append({'uri': item2['Track Uri'], 'positions': [int(item2['Track Position'])]})
+            # Add safety check for track position
+            track_position = item2['Track Position']
+            if track_position is None or track_position == '':
+              continue  # Skip tracks with invalid positions
+            try:
+              position_int = int(track_position)
+              spotRmTrackList.append({'uri': item2['Track Uri'], 'positions': [position_int]})
+            except (ValueError, TypeError):
+              continue  # Skip tracks with invalid position values
 
         # remove tracks for this unique plId
         retVal, plNm = this.rmTracksByPosFromSpotPlaylist(curPlId, spotRmTrackList)
