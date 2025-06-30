@@ -24,3 +24,5 @@ requirements39.txt
 
 
 
+.DS_Store
+sfCfg.json
