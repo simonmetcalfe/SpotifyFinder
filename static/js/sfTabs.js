@@ -426,7 +426,7 @@
   }
 
   //-----------------------------------------------------------------------------------------------
-  async function tabs_afPlayTracks(contextUri='', trackUris = [])
+  async function tabs_afPlayTracks(contextUri='', trackUris = [], position_ms=0)
   {
     // possible errors
     // - not a premium user error
@@ -453,7 +453,8 @@
                                 method: 'POST', headers: {'Content-Type': 'application/json',},
                                 body: JSON.stringify({playTracks: 'playTracks',
                                                            contextUri: contextUri,
-                                                           trackUris: trackUris})});
+                                                           trackUris: trackUris,
+                                                           position_ms: position_ms})});
     if (!response.ok)
       tabs_throwErrHttp('tabs_afPlayTracks()', response.status, 'tabs_errInfo');
     else
@@ -710,5 +711,31 @@
       // console.log('__SF__tabs_errHandler() cancel - goto info tab ');
       // we set vHtmlInfoFn goto clientlog or remove errors help page if user hits cancel
       $("#btnInfoTab")[0].click();
+    }
+  }
+
+  async function tabs_afPreviewTrack(trackId) {
+    try {
+      let response = await fetch(vUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ previewTrack: 'previewTrack', trackId: trackId })
+      });
+  
+      if (!response.ok)
+        tabs_throwErrHttp('tabs_afPreviewTrack()', response.status, 'dupsTab_errInfo');
+      
+      let reply = await response.json();
+      if (reply['errRsp'][0] !== 1) {
+        // Special handling for NO_ACTIVE_DEVICE error
+        if (reply['errRsp'][8] && reply['errRsp'][8].includes('NO_ACTIVE_DEVICE')) {
+          return 'NO_ACTIVE_DEVICE';
+        }
+        tabs_throwSvrErr('tabs_afPreviewTrack()', reply['errRsp'], 'dupsTab_errInfo');
+      }
+      return '';
+    }
+    catch(err) {
+      tabs_errHandler(err);
     }
   }

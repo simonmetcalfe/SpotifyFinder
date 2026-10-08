@@ -42,13 +42,13 @@
     {
       "fnRowCallback": function(nRow, rowData)
       {
-          if (rowData[11] === 1)
+          if (rowData[12] === 1)  // dupsClrList[idx] is at index 12
           { $('td', nRow).addClass('clrDup'); }
 
-          if (rowData[12] != vUserId)   // playlistOwnerId != vUserId
+          if (rowData[13] != vUserId)   // playlistOwnerId != vUserId (index 13)
             $('td:eq(0)', nRow).addClass('disabledCkBx');
 
-          if (!rowData[8])  // !trackId tests for "", null, undefined, false, 0, NaN
+          if (!rowData[9])  // !trackId tests for "", null, undefined, false, 0, NaN (index 9)
             $('td:eq(0)', nRow).addClass('disabledCkBx');
       },
 
@@ -379,7 +379,7 @@
       let dupsClrList = reply['dupsClrList'];
       $.each(dupsTrackList, function(key, tvals)
       {
-        vDupsTable.row.add(['', tvals['Track Name'], tvals['Playlist Name'], tvals['Track Position'], tvals['Artist Name'],
+        vDupsTable.row.add(['', '<i class="material-icons" style="color: #1DB954; cursor: pointer;">play_arrow</i>', tvals['Track Name'], tvals['Playlist Name'], tvals['Track Position'], tvals['Artist Name'],
                                 tvals['Album Name'], tvals['Duration Hms'], tvals['Playlist Owners Name'], tvals['Track Id'],
                                 tvals['Playlist Id'], tvals['Track Uri'], dupsClrList[idx], tvals['Playlist Owners Id'] ]);
         idx++;
@@ -442,7 +442,7 @@
     if (rowAlreadySelected == false)
     {
       let rowData = vDupsTable.row(cell.node()).data()
-      if (rowData[12] != vUserId)    // playlistOwnerId != vUserId
+      if (rowData[13] != vUserId)    // playlistOwnerId != vUserId (index 13)
       {
         e.preventDefault();
         $("#dupsTab_info3").text("Track can not be selected/removed since you are not the playlist owner.");
@@ -453,7 +453,7 @@
         return;
       }
 
-      if (!rowData[8])    // !trackId tests for "", null, undefined, false, 0, NaN
+      if (!rowData[9])    // !trackId tests for "", null, undefined, false, 0, NaN (index 9)
       {
         e.preventDefault();
         $("#dupsTab_info3").text("Track can not be selected/removed since it does not have a track id.");
@@ -563,8 +563,8 @@
         // ignore tracks with a track uri containing: 'spotify:local:'  we can not delete them since the track id is null
         // example: user id: earono, plnm: Sing Songs, track: Stil with you Jungkook
         // if (rowData[10].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[8]) )
-        if (rowData[8])  // add the track uri to the list if the track id is not null
-          rmTrackList.push({'Playlist Id': rowData[9], 'Track Uri': rowData[10], 'Track Position': parseInt(rowData[3])});
+        if (rowData[9])  // add the track uri to the list if the track id is not null (index 9)
+          rmTrackList.push({'Playlist Id': rowData[10], 'Track Uri': rowData[11], 'Track Position': parseInt(rowData[4])});
       });
 
       if (Object.keys(rmTrackList).length === 0)
@@ -650,7 +650,7 @@
 
     let cntSelectd = 0;
     let skipOneOnClrChange = 1;
-    let lastColor = ~vDupsTable.row(0).data()[11];
+    let lastColor = ~vDupsTable.row(0).data()[12];  // dupsClrList[idx] is at index 12
     vDupsTabLoading = true;
 
     if (curSel === 'Select First')
@@ -659,14 +659,14 @@
       {
         let rowData = this.data();
 
-        if (lastColor != rowData[11])
+        if (lastColor != rowData[12])  // dupsClrList[idx] is at index 12
           skipOneOnClrChange = 0;
         else
           skipOneOnClrChange = 1;
 
         if (skipOneOnClrChange == 0)
         {
-          if ((rowData[12] == vUserId) && (rowData[8]))  // if usrId == plOwnderId And trackId is not "", null, undefined, false, 0, NaN
+          if ((rowData[13] == vUserId) && (rowData[9]))  // if usrId == plOwnderId And trackId is not "", null, undefined, false, 0, NaN
           {
             cntSelectd += 1;
             // console.log('auto sel doing a select first cntSelect = ' + cntSelectd);
@@ -675,7 +675,7 @@
           }
         }
 
-        lastColor = rowData[11];
+        lastColor = rowData[12];  // dupsClrList[idx] is at index 12
       });
     }
 
@@ -685,14 +685,14 @@
       {
         let rowData = this.data();
 
-        if (lastColor != rowData[11])
+        if (lastColor != rowData[12])  // dupsClrList[idx] is at index 12
           skipOneOnClrChange = 1;
         else
           skipOneOnClrChange = 0;
 
         if (skipOneOnClrChange == 0)
         {
-          if ((rowData[12] == vUserId) && (rowData[8])) // if usrId == plOwnderId And trackId is not "", null, undefined, false, 0, NaN
+          if ((rowData[13] == vUserId) && (rowData[9])) // if usrId == plOwnderId And trackId is not "", null, undefined, false, 0, NaN
           {
             cntSelectd += 1;
             // console.log('auto sel doing a select second cntSelect = ' + cntSelectd);
@@ -701,7 +701,7 @@
           }
         }
 
-        lastColor = rowData[11];
+        lastColor = rowData[12];  // dupsClrList[idx] is at index 12
       });
     }
 
@@ -797,18 +797,18 @@
       vDupsTable.rows().every(function ()
       {
         rowData = vDupsTable.row(this).data();
-        if (rowData[9] == plId)
+        if (rowData[10] == plId)  // Playlist Id is at index 10
         {
           // originally we just passed a list of track ids but when adding support for episodes we now pass a list of track uri's
-          if (rowData[10])  // track uri is not "", null, undefined, false, 0, NaN
+          if (rowData[11])  // track uri is not "", null, undefined, false, 0, NaN (index 11)
           {
-            // console.log('remove by id: track id = ' + rowData[10])
+            // console.log('remove by id: track id = ' + rowData[11])
 
             // ignore tracks with a track uri containing: 'spotify:local:'  we can not delete them since the track id is null
             // example: user id: earono, plnm: Sing Songs, track: Stil with you Jungkook
-            // if (rowData[10].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[8]) )
-            if (rowData[8]) // add the track uri to the list if the track id is not null
-              rmTrackIdsSet.add(rowData[10]);
+            // if (rowData[11].indexOf("spotify:local:") == -1) ( we could do this instead of if (rowData[9]) )
+            if (rowData[9]) // add the track uri to the list if the track id is not null (index 9)
+              rmTrackIdsSet.add(rowData[11]);
           }
         }
       });
@@ -897,4 +897,42 @@
     // were not loading and we are using nad/very close match
     // console.log('__SF__dupsTab_cbDurationOnChange() durVal: ' + durTimeDiff);
     dupsTab_afFindDupsSeq();
+  }
+
+  $('#dupsTable').on('click', '.material-icons', async function(e) {
+    e.preventDefault();
+    e.stopImmediatePropagation(); // Prevent other click handlers from firing
+    let rowData = vDupsTable.row($(this).closest('tr')).data();
+    let trackId = rowData[9];  // TrackId is at index 9
+    if (trackId) {
+      try {
+        let response = await tabs_afPreviewTrack(trackId);
+        if (response && response.includes('NO_ACTIVE_DEVICE')) {
+          $("#dupsTab_info3").text("No active Spotify device found. Please open Spotify and start playing music first.");
+          setTimeout(function() {
+            $("#dupsTab_info3").text('');
+          }, 4500);
+        }
+      } catch(err) {
+        $("#dupsTab_info3").text("Failed to play track. Please ensure Spotify is open and playing.");
+        setTimeout(function() {
+          $("#dupsTab_info3").text('');
+        }, 4500);
+      }
+    }
+  });
+
+  function dupsTab_playTrack(trackUri)
+  {
+    // console.log('__SF__dupsTab_playTrack() - trackUri = ' + trackUri);
+    // play/pause/next/add to queue all require spotify premium account...the ui btn should have been disabled...
+    if (vUserProduct != 'premium')
+      return;
+
+    // console.log('__SF__dupsTab_playTrack() - trackUri = ' + trackUri);
+    tabs_afPlayTracks('', [trackUri], 30000).then(function(errMsg)
+    {
+      if (errMsg !== '')
+        $("#dupsTab_info3").text(errMsg);
+    });
   }

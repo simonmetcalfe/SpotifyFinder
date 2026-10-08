@@ -417,7 +417,8 @@ def Tabs():
           # print('>>/Tabs playTrack()')
           contextUri = rqJson['contextUri']
           trackUris = rqJson['trackUris']
-          retVal = oLoader.playTracks(contextUri, trackUris);
+          position_ms = rqJson.get('position_ms', 0)  # Default to 0 if not provided
+          retVal = oLoader.playTracks(contextUri, trackUris, position_ms);
           if ((retVal[0] == 1) and (oLoader.sMySqlDbName != '')):
             oLoader.updateDbVisitCnt(mysql, 'Play')
           return jsonify({ 'errRsp': retVal })
@@ -506,6 +507,14 @@ def Tabs():
           retVal = oTester.runTest(testIndex)
           return jsonify({ 'errRsp': retVal})
 
+        elif (key == 'previewTrack'):
+            track_id = rqJson['trackId']
+            track_uri = [f"spotify:track:{track_id}"]
+            retVal = oLoader.playTracks('', track_uri, 30000)  # Empty context_uri, track URI, start at 30 seconds
+            if ((retVal[0] == 1) and (oLoader.sMySqlDbName != '')):
+                oLoader.updateDbVisitCnt(mysql, 'Play')
+            return jsonify({'errRsp': retVal})
+
         # - this is the error in the logs when a route return nothing....
         #   File "C:\Users\lfg70\.aa\LFG_Code\Python\WA_SpotifyFinder\venv\Lib\site-packages\flask\app.py", line 2097, in make_response
         #     raise TypeError(
@@ -538,7 +547,6 @@ def Tabs():
 
   # print('>>/Tabs render_template sfTabs.html')
   return render_template("sfTabs.html")
-
 
 # notes on creating a distro (creates a dist dir)
 #------------------------------------------------------------------------------------------------------------

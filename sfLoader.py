@@ -1107,7 +1107,15 @@ class SpfLoader():
             continue
           # skip over tracks that are already in the spotRmTrackList match on uri and position
           if this.isTrackByPosInSpotRmTrackList(spotRmTrackList, item2['Track Uri'], item2['Track Position']) == False:
-            spotRmTrackList.append({'uri': item2['Track Uri'], 'positions': [int(item2['Track Position'])]})
+            # Add safety check for track position
+            track_position = item2['Track Position']
+            if track_position is None or track_position == '':
+              continue  # Skip tracks with invalid positions
+            try:
+              position_int = int(track_position)
+              spotRmTrackList.append({'uri': item2['Track Uri'], 'positions': [position_int]})
+            except (ValueError, TypeError):
+              continue  # Skip tracks with invalid position values
 
         # remove tracks for this unique plId
         retVal, plNm = this.rmTracksByPosFromSpotPlaylist(curPlId, spotRmTrackList)
@@ -1777,7 +1785,7 @@ class SpfLoader():
 
 
   # ---------------------------------------------------------------
-  def playTracks(this, contextUri, trackUris):
+  def playTracks(this, contextUri, trackUris, position_ms=0):
     try:
       # 'https://api.spotify.com/v1/me/player/play'
 
@@ -1793,22 +1801,26 @@ class SpfLoader():
 
       # three invocations
       #   - context uri                  - start playing a playlist (not used - too confusing - different scenarios produced different results)
-      #   - trackUris                    - play selected tracks (not used - too confusing - different scenarios produced different results)
-      #   - no contextUri & no trackUri  - play whatever is next in the queue (used)
-      # we not pass a device id which tells spotify to use the currently active device
+      #   - track uri                    - start playing a track
+      #   - track uri list               - start playing a list of tracks
 
-      # print('>>loader.playTracks() - making a call to spotify')
       if (contextUri != ''):
-        this.oAuthGetSpotifyObj().start_playback(context_uri=contextUri)
-      elif (len(trackUris) > 0):
-          this.oAuthGetSpotifyObj().start_playback(uris=trackUris)
+        if (len(trackUris) == 0):
+          this.oAuthGetSpotifyObj().start_playback(context_uri=contextUri, position_ms=position_ms)
+        else:
+          this.oAuthGetSpotifyObj().start_playback(context_uri=contextUri, uris=trackUris, position_ms=position_ms)
       else:
-        this.oAuthGetSpotifyObj().start_playback()
+        this.oAuthGetSpotifyObj().start_playback(uris=trackUris, position_ms=position_ms)
 
-      return [sfConst.errNone]
-    except Exception:
+      return [1, '', '', '', '', '', '', '', '']
+
+    except Exception as err:
+      if 'No active device found' in str(err):
+        return [sfConst.errPlayTrack, this.getDateTm(), f"{this.fNm(this)}:{sys.exc_info()[2].tb_lineno}", 
+                'error when issuing play track request', str(type(err)), str(err), '', '', 'NO_ACTIVE_DEVICE']
       exTyp, exObj, exTrace = sys.exc_info()
-      retVal = [sfConst.errPlayTrack, this.getDateTm(), f"{this.fNm(this)}:{exTrace.tb_lineno}", 'error when issuing play tracks request', str(exTyp), str(exObj)]
+      retVal = [sfConst.errPlayTrack, this.getDateTm(), f"{this.fNm(this)}:{exTrace.tb_lineno}", 
+                'error when issuing play track request', str(exTyp), str(exObj)]
       this.addErrLogEntry(retVal)
       return retVal
 
